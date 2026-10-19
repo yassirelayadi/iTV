@@ -3,6 +3,10 @@ package fr.poptv.player.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -155,13 +159,14 @@ fun DetailScreen(
                     ) {
                         PrimaryButton(
                             text = if (resume != null) "Reprendre à ${formatTime(resume.positionMs)}" else "Lecture",
+                            icon = Icons.Filled.PlayArrow,
                             onClick = { onPlayMovie(false) },
                             modifier = Modifier.focusRequester(focus),
                         )
                         if (resume != null) {
-                            Pill("Depuis le début", onClick = { onPlayMovie(true) })
+                            Pill("Depuis le début", onClick = { onPlayMovie(true) }, icon = Icons.Filled.Refresh)
                         }
-                        Pill("Retour", onClick = onBack)
+                        Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
                     }
                 } else {
                     when {

@@ -13,7 +13,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -160,7 +163,12 @@ internal fun speedOptions(player: Player): List<TrackOption> =
 
 /** Bouton de la rangée d'options du lecteur : translucide, blanc au focus. */
 @Composable
-internal fun ControlButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ControlButton(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     FocusItem(
         onClick = onClick,
         modifier = modifier,
@@ -169,14 +177,15 @@ internal fun ControlButton(text: String, onClick: () -> Unit, modifier: Modifier
         idleColor = Color(0x40FFFFFF),
         focusedColor = Color.White,
     ) { focused ->
-        Text(
-            text,
-            color = if (focused) Color.Black else Color.White,
-            fontWeight = FontWeight.Medium,
-            fontSize = 15.sp,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 9.dp),
-        )
+        val color = if (focused) Color.Black else Color.White
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            Text(text, color = color, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1)
+        }
     }
 }
 

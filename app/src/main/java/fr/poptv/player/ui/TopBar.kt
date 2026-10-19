@@ -1,6 +1,9 @@
 package fr.poptv.player.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,10 +66,11 @@ fun AppTopBar(
             value = state.query,
             onChange = onQuery,
             placeholder = "Rechercher",
-            modifier = Modifier.width(220.dp),
+            modifier = Modifier.width(240.dp),
             imeAction = ImeAction.Search,
             shape = RoundedCornerShape(50),
+            leadingIcon = Icons.Filled.Search,
         )
-        Pill("Réglages", onClick = onSettings)
+        RoundIconButton(Icons.Filled.Settings, "Réglages", onClick = onSettings)
     }
 }

@@ -9,7 +9,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
@@ -82,6 +88,7 @@ fun Pill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    icon: ImageVector? = null,
 ) {
     FocusItem(
         onClick = onClick,
@@ -91,24 +98,56 @@ fun Pill(
         idleColor = if (selected) Surface2 else Color.Transparent,
         focusedColor = Color.White,
     ) { focused ->
-        Text(
-            text,
-            color = when {
-                focused -> Color.Black
-                selected -> TextPrimary
-                else -> TextSecondary
-            },
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        val color = when {
+            focused -> Color.Black
+            selected -> TextPrimary
+            else -> TextSecondary
+        }
+        Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            Text(
+                text,
+                color = color,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Bouton rond avec une icône seule (roue crantée des réglages, par exemple). */
+@Composable
+fun RoundIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FocusItem(
+        onClick = onClick,
+        modifier = modifier.size(44.dp),
+        shape = RoundedCornerShape(50),
+        focusScale = 1.12f,
+        idleColor = Color.Transparent,
+        focusedColor = Color.White,
+    ) { focused ->
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (focused) Color.Black else TextSecondary,
+            modifier = Modifier.align(Alignment.Center).size(26.dp),
         )
     }
 }
 
 /** Bouton principal : pastille blanche, texte noir. */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
     FocusItem(
         onClick = onClick,
         modifier = modifier,
@@ -117,12 +156,14 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
         idleColor = Color(0xFFD1D1D6),
         focusedColor = Color.White,
     ) {
-        Text(
-            text,
-            color = Color.Black,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 36.dp, vertical = 12.dp),
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 32.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(24.dp))
+            Text(text, color = Color.Black, fontWeight = FontWeight.Medium)
+        }
     }
 }
 
@@ -137,11 +178,17 @@ fun MinimalField(
     password: Boolean = false,
     imeAction: ImeAction = ImeAction.Next,
     shape: Shape = RoundedCornerShape(14.dp),
+    leadingIcon: ImageVector? = null,
 ) {
     TextField(
         value = value,
         onValueChange = onChange,
         placeholder = { Text(placeholder) },
+        leadingIcon = if (leadingIcon != null) {
+            { Icon(leadingIcon, contentDescription = null, tint = TextSecondary) }
+        } else {
+            null
+        },
         singleLine = true,
         shape = shape,
         visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,

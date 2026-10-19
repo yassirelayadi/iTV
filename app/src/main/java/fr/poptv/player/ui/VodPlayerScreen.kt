@@ -44,6 +44,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -368,17 +369,18 @@ fun VodPlayerScreen(
                     val audio = audioOptions(player, tracks)
                     val subs = subtitleOptions(player, tracks)
                     val quality = qualityOptions(player, tracks)
-                    val buttons = buildList<Pair<String, () -> Unit>> {
-                        if (playback.hasNext) add("Épisode suivant" to { latestOnNext() })
-                        if (audio.size > 1) add("Audio" to { menu = OptionsMenu.AUDIO })
-                        if (subs.isNotEmpty()) add("Sous-titres" to { menu = OptionsMenu.SUBTITLES })
-                        if (quality.isNotEmpty()) add("Qualité" to { menu = OptionsMenu.QUALITY })
-                        add("Vitesse" to { menu = OptionsMenu.SPEED })
+                    val buttons = buildList<Triple<String, ImageVector, () -> Unit>> {
+                        if (playback.hasNext) add(Triple("Épisode suivant", AppIcons.SkipNext, { latestOnNext() }))
+                        if (audio.size > 1) add(Triple("Audio", AppIcons.Audio, { menu = OptionsMenu.AUDIO }))
+                        if (subs.isNotEmpty()) add(Triple("Sous-titres", AppIcons.Subtitles, { menu = OptionsMenu.SUBTITLES }))
+                        if (quality.isNotEmpty()) add(Triple("Qualité", AppIcons.Quality, { menu = OptionsMenu.QUALITY }))
+                        add(Triple("Vitesse", AppIcons.Speed, { menu = OptionsMenu.SPEED }))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        buttons.forEachIndexed { index, (label, action) ->
+                        buttons.forEachIndexed { index, (label, icon, action) ->
                             ControlButton(
                                 text = label,
+                                icon = icon,
                                 onClick = {
                                     lastButton = index
                                     action()
