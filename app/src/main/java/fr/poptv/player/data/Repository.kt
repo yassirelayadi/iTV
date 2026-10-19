@@ -85,6 +85,12 @@ class Repository(private val context: Context) {
         readCache(mediaFile(section)) { json.decodeFromStream(VodCatalog.serializer(), it) }
     }
 
+    /** Ancienneté du cache d'un catalogue, ou null s'il n'existe pas. */
+    fun mediaCacheAgeMs(section: Section): Long? {
+        val file = mediaFile(section)
+        return if (file.exists()) System.currentTimeMillis() - file.lastModified() else null
+    }
+
     suspend fun saveMediaCache(section: Section, catalog: VodCatalog) = withContext(Dispatchers.IO) {
         writeCache(mediaFile(section)) { json.encodeToStream(VodCatalog.serializer(), catalog, it) }
     }

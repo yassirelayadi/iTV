@@ -278,7 +278,7 @@ private fun PosterTile(
         ) {
             if (poster != null) {
                 AsyncImage(
-                    model = poster,
+                    model = rememberImage(poster, 300, 450),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

@@ -232,7 +232,7 @@ private fun ChannelTile(
         ) {
             if (channel.logo != null) {
                 AsyncImage(
-                    model = channel.logo,
+                    model = rememberImage(channel.logo, 256, 256),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize().padding(22.dp),

@@ -215,7 +215,7 @@ fun PlayerScreen(
                 ) {
                     if (channel.logo != null) {
                         AsyncImage(
-                            model = channel.logo,
+                            model = rememberImage(channel.logo, 256, 256),
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier

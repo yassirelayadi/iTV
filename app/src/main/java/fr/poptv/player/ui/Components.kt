@@ -32,7 +32,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.request.ImageRequest
 import androidx.compose.ui.zIndex
 
 /**
@@ -159,4 +161,20 @@ fun MinimalField(
         ),
         modifier = modifier,
     )
+}
+
+/**
+ * Requête d'image décodée à la taille d'affichage (et non en pleine résolution) : beaucoup moins
+ * de mémoire et un défilement plus fluide sur les grands catalogues.
+ */
+@Composable
+fun rememberImage(url: String?, width: Int, height: Int): ImageRequest {
+    val context = LocalContext.current
+    return remember(url, width, height) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .size(width, height)
+            .crossfade(200)
+            .build()
+    }
 }

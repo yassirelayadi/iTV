@@ -27,6 +27,9 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 const val CAT_ALL = "__all"
+
+/** Un catalogue en cache de moins de 6 heures n'est pas retéléchargé. */
+private const val MEDIA_CACHE_TTL_MS = 6L * 60 * 60 * 1000
 const val CAT_FAV = "__fav"
 
 /** Lecture d'un film ou d'un épisode. key = "m:ID" (film) ou "e:ID" (épisode). */
@@ -297,13 +300,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             setMediaLoading(section, true)
+            var fromCache = loaded
             if (!loaded) {
-                repo.loadCachedMedia(section)?.let { setCatalog(section, it) }
+                repo.loadCachedMedia(section)?.let {
+                    setCatalog(section, it)
+                    fromCache = true
+                }
             }
             try {
+                // Cache récent : affichage immédiat, sans retélécharger tout le catalogue.
+                // « Actualiser » dans les réglages force le téléchargement.
+                val age = repo.mediaCacheAgeMs(section)
+                if (!force && fromCache && age != null && age < MEDIA_CACHE_TTL_MS) return@launch
+
                 val catalog = repo.fetchMedia(creds, section)
                 repo.saveMediaCache(section, catalog)
-                setCatalog(section, catalog)
+                // Rien n'a changé : on évite de reconstruire tout l'écran.
+                val current = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
+                if (catalog != current) setCatalog(section, catalog)
                 _state.update { it.copy(mediaError = null) }
             } catch (e: CancellationException) {
                 throw e

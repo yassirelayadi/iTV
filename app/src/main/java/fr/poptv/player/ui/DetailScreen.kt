@@ -81,7 +81,7 @@ fun DetailScreen(
     Box(modifier = Modifier.fillMaxSize().appBackground(tint)) {
         if (item.poster != null) {
             AsyncImage(
-                model = item.poster,
+                model = rememberImage(item.poster, 320, 480),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().alpha(0.10f),
@@ -112,7 +112,7 @@ fun DetailScreen(
             ) {
                 if (item.poster != null) {
                     AsyncImage(
-                        model = item.poster,
+                        model = rememberImage(item.poster, 400, 600),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
@@ -270,7 +270,7 @@ private fun EpisodeTile(
     ) {
         if (episode.image != null) {
             AsyncImage(
-                model = episode.image,
+                model = rememberImage(episode.image, 480, 270),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
