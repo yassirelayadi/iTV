@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -46,6 +48,7 @@ import fr.poptv.player.CAT_ALL
 import fr.poptv.player.CAT_FAV
 import fr.poptv.player.UiState
 import fr.poptv.player.data.Channel
+import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Section
 
 private val SidePadding = 48.dp
@@ -57,6 +60,8 @@ private data class Shelf(val id: String, val title: String, val channels: List<C
 @Composable
 fun ChannelsScreen(
     state: UiState,
+    epg: Map<String, EpgInfo>,
+    onNeedEpg: (String) -> Unit,
     onSection: (Section) -> Unit,
     onSelectCategory: (String) -> Unit,
     onQuery: (String) -> Unit,
@@ -129,12 +134,19 @@ fun ChannelsScreen(
                         val among = remember(state.channels, last) {
                             state.channels.filter { it.categoryId == last.categoryId }.ifEmpty { listOf(last) }
                         }
-                        ResumeHero(channel = last, onPlay = { onPlay(last, among) })
+                        ResumeHero(
+                            channel = last,
+                            info = epg[last.id],
+                            onNeedEpg = onNeedEpg,
+                            onPlay = { onPlay(last, among) },
+                        )
                     }
                 }
                 items(shelves, key = { it.id }) { shelf ->
                     ShelfRow(
                         shelf = shelf,
+                        epg = epg,
+                        onNeedEpg = onNeedEpg,
                         favorites = state.favorites,
                         onPlay = onPlay,
                         onToggleFavorite = onToggleFavorite,
@@ -165,6 +177,8 @@ fun ChannelsScreen(
                 items(gridChannels, key = { it.id }) { channel ->
                     ChannelTile(
                         channel = channel,
+                        info = epg[channel.id],
+                        onNeedEpg = onNeedEpg,
                         favorite = channel.id in state.favorites,
                         onClick = { onPlay(channel, gridChannels) },
                         onLongClick = { onToggleFavorite(channel.id) },
@@ -200,7 +214,10 @@ private fun CategoryTabs(state: UiState, onSelect: (String) -> Unit) {
 
 /** Bandeau du haut : la dernière chaîne regardée, avec un bouton pour la reprendre. */
 @Composable
-private fun ResumeHero(channel: Channel, onPlay: () -> Unit) {
+private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> Unit, onPlay: () -> Unit) {
+    LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
+    val nowSec = System.currentTimeMillis() / 1000
+    val program = info?.now(nowSec)
     Row(
         modifier = Modifier
             .padding(horizontal = SidePadding)
@@ -253,6 +270,29 @@ private fun ResumeHero(channel: Channel, onPlay: () -> Unit) {
                 )
                 LiveBadge(fontSize = 11.sp)
             }
+            if (program != null) {
+                Text(
+                    "${program.title}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0x40FFFFFF)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(program.progress(nowSec))
+                            .fillMaxHeight()
+                            .background(Color.White),
+                    )
+                }
+            }
         }
         PrimaryButton("Reprendre", onClick = onPlay, icon = Icons.Filled.PlayArrow)
     }
@@ -261,6 +301,8 @@ private fun ResumeHero(channel: Channel, onPlay: () -> Unit) {
 @Composable
 private fun ShelfRow(
     shelf: Shelf,
+    epg: Map<String, EpgInfo>,
+    onNeedEpg: (String) -> Unit,
     favorites: Set<String>,
     onPlay: (Channel, List<Channel>) -> Unit,
     onToggleFavorite: (String) -> Unit,
@@ -283,6 +325,8 @@ private fun ShelfRow(
             items(visible, key = { it.id }) { channel ->
                 ChannelTile(
                     channel = channel,
+                    info = epg[channel.id],
+                    onNeedEpg = onNeedEpg,
                     favorite = channel.id in favorites,
                     onClick = { onPlay(channel, shelf.channels) },
                     onLongClick = { onToggleFavorite(channel.id) },
@@ -314,11 +358,17 @@ private fun ShelfRow(
 @Composable
 private fun ChannelTile(
     channel: Channel,
+    info: EpgInfo?,
+    onNeedEpg: (String) -> Unit,
     favorite: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
+    val nowSec = System.currentTimeMillis() / 1000
+    val program = info?.now(nowSec)
+
     FocusItem(
         onClick = onClick,
         onLongClick = onLongClick,
@@ -331,7 +381,7 @@ private fun ChannelTile(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Box(modifier = Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(if (program != null) 50.dp else 58.dp), contentAlignment = Alignment.Center) {
                 if (channel.logo != null) {
                     AsyncImage(
                         model = rememberImage(channel.logo, 256, 256),
@@ -357,6 +407,32 @@ private fun ChannelTile(
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
+            if (program != null) {
+                Text(
+                    program.title,
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+        if (program != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(Color(0x33FFFFFF)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(program.progress(nowSec))
+                        .fillMaxHeight()
+                        .background(Color.White),
+                )
+            }
         }
         LiveBadge(modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
         if (favorite) {

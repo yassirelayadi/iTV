@@ -7,7 +7,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -60,6 +63,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import fr.poptv.player.data.Channel
+import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Http
 import kotlinx.coroutines.delay
 
@@ -67,6 +71,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun PlayerScreen(
     channel: Channel,
+    epg: EpgInfo?,
+    onNeedEpg: (String) -> Unit,
     onZap: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -122,6 +128,9 @@ fun PlayerScreen(
         player.prepare()
         player.playWhenReady = true
     }
+
+    // Le programme est redemandé à chaque affichage du bandeau (le serveur n'est interrogé qu'au besoin).
+    LaunchedEffect(channel.id, overlayTick) { onNeedEpg(channel.id) }
 
     LaunchedEffect(channel.id, overlayTick) {
         overlayVisible = true
@@ -224,9 +233,42 @@ fun PlayerScreen(
                                 .background(Surface1),
                         )
                     }
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(channel.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium)
-                        Text("Haut / Bas pour changer de chaîne", color = TextSecondary, fontSize = 15.sp)
+                        val nowSec = System.currentTimeMillis() / 1000
+                        val current = epg?.now(nowSec)
+                        val upcoming = epg?.next(nowSec)
+                        if (current != null) {
+                            Text(
+                                "${current.title}  ·  ${formatClock(current.startSec)} – ${formatClock(current.endSec)}",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(360.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Color(0x40FFFFFF)),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(current.progress(nowSec))
+                                        .fillMaxHeight()
+                                        .background(Color.White),
+                                )
+                            }
+                        }
+                        if (upcoming != null) {
+                            Text(
+                                "Ensuite : ${upcoming.title}  ·  ${formatClock(upcoming.startSec)}",
+                                color = TextSecondary,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                            )
+                        }
+                        Text("Haut / Bas pour changer de chaîne", color = TextSecondary, fontSize = 13.sp)
                     }
                 }
             }

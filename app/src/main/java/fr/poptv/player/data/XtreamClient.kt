@@ -1,6 +1,7 @@
 package fr.poptv.player.data
 
 import android.net.Uri
+import android.util.Base64
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.DecodeSequenceMode
@@ -169,6 +170,33 @@ object XtreamClient {
             duration = info.text("duration"),
             rating = info.text("rating"),
         )
+    }
+
+    // ---- Guide des programmes ----
+
+    /** Titres encodés en base64 par la plupart des serveurs ; sinon le texte brut est gardé. */
+    private fun decodeEpgText(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val decoded = runCatching { String(Base64.decode(raw, Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
+        val text = if (decoded != null && decoded.isNotBlank() && decoded.none { it == '\uFFFD' || it.isISOControl() && it != '\n' }) {
+            decoded
+        } else {
+            raw
+        }
+        return text.trim().takeIf { it.isNotEmpty() }
+    }
+
+    /** Programme en cours et suivants d'une chaîne (get_short_epg). Liste vide si le serveur n'a rien. */
+    fun shortEpg(creds: Credentials, streamId: String): List<Program> {
+        val root = parseObject(api(creds, "get_short_epg", mapOf("stream_id" to streamId, "limit" to "4")))
+        val listings = root["epg_listings"] as? JsonArray ?: return emptyList()
+        return listings.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val title = decodeEpgText(o.text("title")) ?: return@mapNotNull null
+            val start = o.str("start_timestamp")?.toLongOrNull() ?: return@mapNotNull null
+            val end = o.str("stop_timestamp")?.toLongOrNull() ?: return@mapNotNull null
+            Program(title, start, end)
+        }.sortedBy { it.startSec }
     }
 
     fun movieUrl(creds: Credentials, item: VodItem): String =

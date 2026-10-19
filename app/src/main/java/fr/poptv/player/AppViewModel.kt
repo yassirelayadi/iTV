@@ -8,6 +8,7 @@ import fr.poptv.player.data.Channel
 import fr.poptv.player.data.Credentials
 import fr.poptv.player.data.Detail
 import fr.poptv.player.data.Episode
+import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Repository
 import fr.poptv.player.data.ResumeEntry
 import fr.poptv.player.data.Section
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -125,6 +128,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+    // Guide des programmes, chargé à la demande pour les chaînes affichées.
+    private val _epg = MutableStateFlow<Map<String, EpgInfo>>(emptyMap())
+    val epg: StateFlow<Map<String, EpgInfo>> = _epg.asStateFlow()
+    private val epgInFlight = HashSet<String>()
+    private val epgGate = Semaphore(3)
+
     private var credentials: Credentials? = null
     private var queue: List<VodPlayback> = emptyList()
     private var queueIndex = -1
@@ -177,6 +186,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             store.clearHidden()
             repo.clearCache()
             credentials = null
+            _epg.value = emptyMap()
             _state.update {
                 UiState(
                     loading = false,
@@ -549,6 +559,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- Chaînes en direct ----
+
+    /** Demande le programme d'une chaîne (comptes Xtream). Rafraîchi au plus toutes les 10 minutes. */
+    fun requestEpg(channelId: String) {
+        val creds = credentials ?: return
+        if (creds.type != "xtream") return
+        val nowSec = System.currentTimeMillis() / 1000
+        _epg.value[channelId]?.let { known ->
+            val fresh = nowSec - known.fetchedAt < 600 &&
+                (known.programs.isEmpty() || known.programs.last().endSec > nowSec)
+            if (fresh) return
+        }
+        if (!epgInFlight.add(channelId)) return
+        viewModelScope.launch {
+            try {
+                val programs = epgGate.withPermit { repo.epg(creds, channelId) }
+                _epg.update { it + (channelId to EpgInfo(programs, nowSec)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Pas de guide pour cette chaîne : on réessaiera plus tard.
+                _epg.update { it + (channelId to EpgInfo(emptyList(), nowSec)) }
+            } finally {
+                epgInFlight.remove(channelId)
+            }
+        }
+    }
 
     fun play(channel: Channel, among: List<Channel>) {
         _state.update { it.copy(playing = resolve(channel), zapList = among) }

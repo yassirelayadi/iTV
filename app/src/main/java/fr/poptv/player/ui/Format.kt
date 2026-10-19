@@ -36,3 +36,7 @@ internal fun prettyDuration(raw: String?): String? {
         else -> "%d h %02d".format(h, m)
     }
 }
+
+/** Heure locale d'un horodatage Unix (secondes), par exemple « 20:45 ». */
+internal fun formatClock(sec: Long): String =
+    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sec * 1000))

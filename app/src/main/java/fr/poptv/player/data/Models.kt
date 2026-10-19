@@ -107,3 +107,17 @@ data class Detail(
     val info: DetailInfo = DetailInfo(),
     val seasons: List<Season> = emptyList(),
 )
+
+// ---- Guide des programmes (EPG, comptes Xtream) ----
+
+data class Program(val title: String, val startSec: Long, val endSec: Long) {
+    /** Part du programme déjà écoulée, de 0 à 1. */
+    fun progress(nowSec: Long): Float =
+        if (endSec <= startSec) 0f else ((nowSec - startSec).toFloat() / (endSec - startSec)).coerceIn(0f, 1f)
+}
+
+/** Programmes à venir d'une chaîne, tels que renvoyés par le serveur à l'instant fetchedAt (secondes). */
+data class EpgInfo(val programs: List<Program>, val fetchedAt: Long) {
+    fun now(sec: Long): Program? = programs.firstOrNull { it.startSec <= sec && sec < it.endSec }
+    fun next(sec: Long): Program? = programs.filter { it.startSec > sec }.minByOrNull { it.startSec }
+}

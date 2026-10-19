@@ -78,6 +78,7 @@ private fun App(viewModel: AppViewModel) {
     val vodPlaying = state.vodPlaying
     val detail = state.detail
     val manageSection = state.manageSection
+    val epg by viewModel.epg.collectAsStateWithLifecycle()
 
     when {
         vodPlaying != null -> key(vodPlaying.key) {
@@ -92,6 +93,8 @@ private fun App(viewModel: AppViewModel) {
 
         playing != null -> PlayerScreen(
             channel = playing,
+            epg = epg[playing.id],
+            onNeedEpg = viewModel::requestEpg,
             onZap = viewModel::zap,
             onBack = viewModel::stop,
         )
@@ -141,6 +144,8 @@ private fun App(viewModel: AppViewModel) {
 
         state.section == Section.LIVE -> ChannelsScreen(
             state = state,
+            epg = epg,
+            onNeedEpg = viewModel::requestEpg,
             onSection = viewModel::selectSection,
             onSelectCategory = viewModel::selectCategory,
             onQuery = viewModel::setQuery,
