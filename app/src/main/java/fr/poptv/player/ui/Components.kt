@@ -1,7 +1,9 @@
 package fr.poptv.player.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -66,9 +68,13 @@ fun FocusItem(
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) focusScale else 1f, tween(160), label = "focusScale")
-    val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(160), label = "focusColor")
-    val elevation by animateDpAsState(if (focused) 18.dp else 0.dp, tween(160), label = "focusShadow")
+    val scale by animateFloatAsState(
+        if (focused) focusScale else 1f,
+        spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
+        label = "focusScale",
+    )
+    val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(220), label = "focusColor")
+    val elevation by animateDpAsState(if (focused) 18.dp else 0.dp, tween(220), label = "focusShadow")
 
     Box(
         modifier = modifier

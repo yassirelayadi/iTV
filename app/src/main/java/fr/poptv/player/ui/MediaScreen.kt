@@ -1,6 +1,8 @@
 package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -401,13 +403,19 @@ private fun PosterTile(
 /** Bandeau du haut : titre, infos et résumé de l'élément sélectionné. */
 @Composable
 private fun MediaHero(info: HeroInfo?) {
+    Crossfade(
+        targetState = info,
+        animationSpec = tween(260, easing = AppleEase),
+        modifier = Modifier.fillMaxWidth().height(124.dp),
+        label = "hero",
+    ) { shown ->
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(124.dp)
+            .fillMaxSize()
             .padding(horizontal = ScreenPadding),
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
+        val info = shown
         if (info != null) {
             Text(
                 info.title,
@@ -431,5 +439,6 @@ private fun MediaHero(info: HeroInfo?) {
                 )
             }
         }
+    }
     }
 }

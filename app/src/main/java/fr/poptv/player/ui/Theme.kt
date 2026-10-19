@@ -1,10 +1,15 @@
 package fr.poptv.player.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
@@ -123,4 +128,21 @@ private fun tintedTop(tint: Color?): Color {
 fun Modifier.appBackground(tint: Color? = null): Modifier {
     val top by animateColorAsState(tintedTop(tint), tween(700), label = "bgTop")
     return background(Brush.verticalGradient(listOf(top, BgBottom)))
+}
+
+/** Courbe douce des animations : démarrage vif, arrivée très lente (proche de celle d'Apple). */
+val AppleEase = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
+/** Apparition d'un écran : fondu et léger zoom depuis 97 %. Le fond placé avant ce modificateur reste fixe. */
+@Composable
+fun Modifier.appear(): Modifier {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, tween(420, easing = AppleEase)) }
+    return graphicsLayer {
+        val p = progress.value
+        alpha = p
+        val s = 0.97f + 0.03f * p
+        scaleX = s
+        scaleY = s
+    }
 }

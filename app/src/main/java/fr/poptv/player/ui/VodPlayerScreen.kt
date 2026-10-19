@@ -6,6 +6,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
@@ -436,7 +440,12 @@ fun VodPlayerScreen(
         }
 
         // Carte « Épisode suivant » pendant le générique.
-        if (inCredits && !panelOpen) {
+        AnimatedVisibility(
+            visible = inCredits && !panelOpen,
+            enter = fadeIn(tween(350, easing = AppleEase)) + slideInVertically(tween(450, easing = AppleEase)) { it / 3 },
+            exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 3 },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 56.dp, bottom = 150.dp),
+        ) {
             NextEpisodeCard(
                 label = playback.next,
                 poster = playback.poster,
@@ -445,15 +454,23 @@ fun VodPlayerScreen(
                 onPlay = { latestOnNext() },
                 onClose = { nextDismissed = true },
                 playFocus = nextFocus,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 56.dp, bottom = 150.dp),
             )
         }
 
         // Options : panneau latéral sur toute la hauteur.
-        if (panelOpen) {
+        AnimatedVisibility(
+            visible = panelOpen,
+            enter = fadeIn(tween(300, easing = AppleEase)),
+            exit = fadeOut(tween(220)),
+        ) {
             Box(modifier = Modifier.fillMaxSize().background(Color(0x59000000)))
+        }
+        AnimatedVisibility(
+            visible = panelOpen,
+            enter = fadeIn(tween(300, easing = AppleEase)) + slideInHorizontally(tween(420, easing = AppleEase)) { it / 2 },
+            exit = fadeOut(tween(200)) + slideOutHorizontally(tween(260)) { it / 2 },
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
             val audio = audioOptions(player, tracks)
             val subs = subtitleOptions(player, tracks)
             val quality = qualityOptions(player, tracks)
@@ -469,7 +486,6 @@ fun VodPlayerScreen(
             PlayerSidePanel(
                 sections = sections,
                 onClose = { panelOpen = false },
-                modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
     }

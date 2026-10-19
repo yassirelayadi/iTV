@@ -94,6 +94,7 @@ fun CategoriesScreen(
         modifier = Modifier
             .fillMaxSize()
             .appBackground()
+            .appear()
             .padding(horizontal = 56.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

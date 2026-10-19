@@ -66,7 +66,7 @@ fun AppShell(
             onSearch = { searchOpen = true },
             onSettings = onSettings,
         )
-        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        Column(modifier = Modifier.weight(1f).fillMaxHeight().appear()) {
             AnimatedVisibility(visible = headerVisible) {
                 ScreenHeader(
                     state = state,

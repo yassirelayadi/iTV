@@ -2,7 +2,13 @@ package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -119,7 +125,7 @@ fun DetailScreen(
 
     // Fond : dégradé graphite teinté par la couleur de l'affiche, avec l'affiche très estompée par-dessus.
     val tint = rememberPosterTint(item.poster)
-    Box(modifier = Modifier.fillMaxSize().appBackground(tint)) {
+    Box(modifier = Modifier.fillMaxSize().appBackground(tint).appear()) {
         if (item.poster != null) {
             AsyncImage(
                 model = rememberImage(item.poster, 320, 480),
@@ -242,7 +248,11 @@ fun DetailScreen(
                                 Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
                             }
 
-                            if (seasonMenuOpen) {
+                            AnimatedVisibility(
+                                visible = seasonMenuOpen,
+                                enter = fadeIn(tween(240, easing = AppleEase)) + expandVertically(tween(300, easing = AppleEase)),
+                                exit = fadeOut(tween(160)) + shrinkVertically(tween(220, easing = AppleEase)),
+                            ) {
                                 SeasonMenu(
                                     seasons = detail.seasons,
                                     selectedIndex = seasonIndex,
@@ -253,8 +263,13 @@ fun DetailScreen(
                                         closeSeasonMenu()
                                     },
                                 )
-                            } else {
-                                // Épisode sélectionné : titre et résumé, mis à jour au fil du focus.
+                            }
+                            // Épisode sélectionné : titre et résumé, mis à jour au fil du focus.
+                            AnimatedVisibility(
+                                visible = !seasonMenuOpen,
+                                enter = fadeIn(tween(240, easing = AppleEase)),
+                                exit = fadeOut(tween(120)),
+                            ) {
                                 EpisodePanel(shown, fallbackPlot = plot)
                             }
 
