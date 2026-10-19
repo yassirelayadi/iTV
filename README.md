@@ -101,6 +101,10 @@ Alternative : copie `iTV.apk` sur une clé USB et ouvre-la avec un gestionnaire 
 - `AppViewModel.kt` : état de l'application
 - `ui/` : écrans Compose (connexion, liste des chaînes, lecteur)
 
+## Police
+
+L'app utilise **Inter** (licence SIL OFL, voir `FONT-LICENSE-Inter.txt`), la police libre la plus proche de la police d'Apple.
+
 ## Légalité
 
 L'application est un simple lecteur. Utilise-la uniquement avec des flux que tu as le droit de regarder.

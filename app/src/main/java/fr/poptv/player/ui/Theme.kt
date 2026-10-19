@@ -9,7 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import fr.poptv.player.R
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -24,9 +30,45 @@ val TextPrimary = Color(0xFFF5F5F7)
 val TextSecondary = Color(0xFFA1A1A6)
 val ErrorColor = Color(0xFFFF453A)
 
+/**
+ * Police de toute l'app : Inter, la police libre la plus proche de la police d'Apple (SF Pro),
+ * dont la licence n'autorise pas l'usage sur Android.
+ */
+val AppFont = FontFamily(
+    Font(R.font.inter_light, FontWeight.Light),
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_semibold, FontWeight.Bold),
+)
+
+private fun TextStyle.inter() = copy(fontFamily = AppFont)
+
+private fun appTypography(): Typography {
+    val base = Typography()
+    return base.copy(
+        displayLarge = base.displayLarge.inter(),
+        displayMedium = base.displayMedium.inter(),
+        displaySmall = base.displaySmall.inter(),
+        headlineLarge = base.headlineLarge.inter(),
+        headlineMedium = base.headlineMedium.inter(),
+        headlineSmall = base.headlineSmall.inter(),
+        titleLarge = base.titleLarge.inter(),
+        titleMedium = base.titleMedium.inter(),
+        titleSmall = base.titleSmall.inter(),
+        bodyLarge = base.bodyLarge.inter(),
+        bodyMedium = base.bodyMedium.inter(),
+        bodySmall = base.bodySmall.inter(),
+        labelLarge = base.labelLarge.inter(),
+        labelMedium = base.labelMedium.inter(),
+        labelSmall = base.labelSmall.inter(),
+    )
+}
+
 @Composable
 fun PopTheme(content: @Composable () -> Unit) {
     MaterialTheme(
+        typography = appTypography(),
         colorScheme = darkColorScheme(
             primary = Color.White,
             onPrimary = Color.Black,
