@@ -3,10 +3,14 @@ package fr.poptv.player.data
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import okhttp3.Request
 import java.io.File
 
+@OptIn(ExperimentalSerializationApi::class)
 class Repository(private val context: Context) {
 
     private val json = Json {
@@ -35,17 +39,37 @@ class Repository(private val context: Context) {
         }
     }
 
+    /** Lit un cache en flux ; un cache illisible (ou trop gros) est supprimé. */
+    private fun <T> readCache(file: File, read: (java.io.InputStream) -> T): T? {
+        if (!file.exists()) return null
+        return try {
+            file.inputStream().buffered().use(read)
+        } catch (e: Throwable) {
+            file.delete()
+            null
+        }
+    }
+
+    /** Écrit en flux dans un fichier temporaire, puis le renomme : jamais de cache à moitié écrit. */
+    private fun writeCache(file: File, write: (java.io.OutputStream) -> Unit) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        try {
+            tmp.outputStream().buffered().use(write)
+            if (!tmp.renameTo(file)) {
+                file.delete()
+                tmp.renameTo(file)
+            }
+        } catch (e: Throwable) {
+            tmp.delete()
+        }
+    }
+
     suspend fun loadCached(): Playlist? = withContext(Dispatchers.IO) {
-        runCatching {
-            json.decodeFromString(Playlist.serializer(), cacheFile.readText())
-        }.getOrNull()
+        readCache(cacheFile) { json.decodeFromStream(Playlist.serializer(), it) }
     }
 
     suspend fun saveCache(playlist: Playlist) = withContext(Dispatchers.IO) {
-        runCatching {
-            cacheFile.writeText(json.encodeToString(Playlist.serializer(), playlist))
-        }
-        Unit
+        writeCache(cacheFile) { json.encodeToStream(Playlist.serializer(), playlist, it) }
     }
 
     // ---- Films et séries ----
@@ -58,16 +82,11 @@ class Repository(private val context: Context) {
     }
 
     suspend fun loadCachedMedia(section: Section): VodCatalog? = withContext(Dispatchers.IO) {
-        runCatching {
-            json.decodeFromString(VodCatalog.serializer(), mediaFile(section).readText())
-        }.getOrNull()
+        readCache(mediaFile(section)) { json.decodeFromStream(VodCatalog.serializer(), it) }
     }
 
     suspend fun saveMediaCache(section: Section, catalog: VodCatalog) = withContext(Dispatchers.IO) {
-        runCatching {
-            mediaFile(section).writeText(json.encodeToString(VodCatalog.serializer(), catalog))
-        }
-        Unit
+        writeCache(mediaFile(section)) { json.encodeToStream(VodCatalog.serializer(), catalog, it) }
     }
 
     suspend fun vodInfo(creds: Credentials, id: String): DetailInfo = withContext(Dispatchers.IO) {

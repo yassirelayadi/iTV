@@ -11,12 +11,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.poptv.player.data.Section
 import fr.poptv.player.ui.Bg
 import fr.poptv.player.ui.CategoriesScreen
+import fr.poptv.player.ui.CrashScreen
 import fr.poptv.player.ui.ChannelsScreen
 import fr.poptv.player.ui.DetailScreen
 import fr.poptv.player.ui.LoginScreen
@@ -32,9 +36,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReport.install(this)
         setContent {
             PopTheme {
-                App(viewModel)
+                var crash by remember { mutableStateOf(CrashReport.read(this@MainActivity)) }
+                val report = crash
+                if (report != null) {
+                    CrashScreen(report) {
+                        CrashReport.clear(this@MainActivity)
+                        crash = null
+                    }
+                } else {
+                    App(viewModel)
+                }
             }
         }
     }

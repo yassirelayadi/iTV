@@ -307,6 +307,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(mediaError = null) }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: OutOfMemoryError) {
+                _state.update { it.copy(mediaError = "Catalogue trop volumineux pour la mémoire de cet appareil.") }
             } catch (e: Exception) {
                 _state.update { st ->
                     val empty = (if (isMovies) st.allMovies else st.allSeries).items.isEmpty()

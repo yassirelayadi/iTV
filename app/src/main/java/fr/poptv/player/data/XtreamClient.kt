@@ -1,11 +1,15 @@
 package fr.poptv.player.data
 
 import android.net.Uri
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.DecodeSequenceMode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeToSequence
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -51,6 +55,42 @@ object XtreamClient {
         }
     }
 
+    /**
+     * Lit une grande liste JSON élément par élément, sans jamais la garder en entier en mémoire
+     * (un catalogue de films peut peser plusieurs dizaines de Mo).
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    private fun <T : Any> streamArray(
+        creds: Credentials,
+        action: String,
+        params: Map<String, String> = emptyMap(),
+        transform: (JsonObject) -> T?,
+    ): List<T> {
+        val base = normalizeServer(creds.server)
+        val url = "$base/player_api.php".toHttpUrl().newBuilder()
+            .addQueryParameter("username", creds.username)
+            .addQueryParameter("password", creds.password)
+            .addQueryParameter("action", action)
+            .apply { params.forEach { (key, value) -> addQueryParameter(key, value) } }
+            .build()
+        val request = Request.Builder().url(url).header("User-Agent", "iTV/0.1").build()
+        return Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("Le serveur a répondu HTTP ${response.code}")
+            val body = response.body ?: error("Réponse vide du serveur")
+            val out = ArrayList<T>()
+            try {
+                body.byteStream().buffered().use { stream ->
+                    for (element in json.decodeToSequence(stream, JsonObject.serializer(), DecodeSequenceMode.ARRAY_WRAPPED)) {
+                        transform(element)?.let { out.add(it) }
+                    }
+                }
+            } catch (e: SerializationException) {
+                error("Identifiants refusés, réponse incomplète ou serveur incompatible")
+            }
+            out
+        }
+    }
+
     private fun parse(body: String) = try {
         json.parseToJsonElement(body)
     } catch (e: Exception) {
@@ -75,9 +115,8 @@ object XtreamClient {
     fun fetch(creds: Credentials): Playlist {
         val categories = categories(creds, "get_live_categories")
 
-        val channels = parseArray(api(creds, "get_live_streams")).mapNotNull { el ->
-            val o = el as? JsonObject ?: return@mapNotNull null
-            val id = o.str("stream_id") ?: return@mapNotNull null
+        val channels = streamArray(creds, "get_live_streams") { o ->
+            val id = o.str("stream_id") ?: return@streamArray null
             Channel(
                 id = id,
                 name = o.str("name") ?: id,
@@ -97,9 +136,8 @@ object XtreamClient {
 
     fun fetchMovies(creds: Credentials): VodCatalog {
         val categories = categories(creds, "get_vod_categories")
-        val items = parseArray(api(creds, "get_vod_streams")).mapNotNull { el ->
-            val o = el as? JsonObject ?: return@mapNotNull null
-            val id = o.str("stream_id") ?: return@mapNotNull null
+        val items = streamArray(creds, "get_vod_streams") { o ->
+            val id = o.str("stream_id") ?: return@streamArray null
             VodItem(
                 id = id,
                 name = o.text("name") ?: id,
@@ -143,9 +181,8 @@ object XtreamClient {
 
     fun fetchSeries(creds: Credentials): VodCatalog {
         val categories = categories(creds, "get_series_categories")
-        val items = parseArray(api(creds, "get_series")).mapNotNull { el ->
-            val o = el as? JsonObject ?: return@mapNotNull null
-            val id = o.str("series_id") ?: return@mapNotNull null
+        val items = streamArray(creds, "get_series") { o ->
+            val id = o.str("series_id") ?: return@streamArray null
             VodItem(
                 id = id,
                 name = o.text("name") ?: id,
