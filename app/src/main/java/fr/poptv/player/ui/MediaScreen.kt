@@ -45,7 +45,9 @@ import fr.poptv.player.UiState
 import fr.poptv.player.data.Category
 import fr.poptv.player.data.ResumeEntry
 import fr.poptv.player.data.Section
+import fr.poptv.player.data.VodCatalog
 import fr.poptv.player.data.VodItem
+import androidx.compose.foundation.lazy.LazyListState
 
 private const val SHELF_LIMIT = 30
 
@@ -56,6 +58,38 @@ private data class VodShelf(val id: String, val title: String, val items: List<V
 
 /** Contenu du bandeau du haut : l'élément sélectionné (titre, infos, résumé). */
 private data class HeroInfo(val title: String, val meta: String, val plot: String?, val poster: String?)
+
+private var moviesShelves: Pair<VodCatalog, List<VodShelf>>? = null
+private var seriesShelves: Pair<VodCatalog, List<VodShelf>>? = null
+
+/**
+ * Les rangées sont calculées une seule fois par catalogue et gardées en mémoire : en revenant d'une
+ * fiche, l'écran se reconstruit sans refaire ces calculs (tris sur tout le catalogue).
+ */
+private fun shelvesFor(catalog: VodCatalog, isMovies: Boolean): List<VodShelf> {
+    val cached = if (isMovies) moviesShelves else seriesShelves
+    if (cached != null && cached.first === catalog) return cached.second
+    val built = buildShelves(catalog)
+    if (isMovies) moviesShelves = catalog to built else seriesShelves = catalog to built
+    return built
+}
+
+private fun buildShelves(catalog: VodCatalog): List<VodShelf> {
+    val byCategory = catalog.items.groupBy { it.categoryId }
+    return buildList {
+        val recent = catalog.items.filter { it.added > 0 }.sortedByDescending { it.added }.take(SHELF_LIMIT)
+        if (recent.size >= 5) add(VodShelf(SHELF_RECENT, "Ajouts récents", recent))
+        val top = catalog.items
+            .mapNotNull { item -> cleanRating(item.rating)?.replace(',', '.')?.toDoubleOrNull()?.takeIf { it > 0 }?.let { item to it } }
+            .sortedByDescending { it.second }
+            .take(SHELF_LIMIT)
+            .map { it.first }
+        if (top.size >= 5) add(VodShelf(SHELF_TOP, "Les mieux notés", top))
+        catalog.categories.forEach { category ->
+            byCategory[category.id]?.let { add(VodShelf(category.id, category.name, it)) }
+        }
+    }
+}
 
 /** « 7.80000 » -> « 7,8 » ; null si la note est absente ou nulle. */
 private fun ratingLabel(raw: String?): String? {
@@ -80,6 +114,7 @@ fun MediaScreen(
     onSettings: () -> Unit,
     onOpen: (VodItem) -> Unit,
     onResume: (ResumeEntry) -> Unit,
+    listState: LazyListState,
 ) {
     val isMovies = state.section == Section.MOVIES
     val catalog = if (isMovies) state.movies else state.series
@@ -91,22 +126,7 @@ fun MediaScreen(
     val categoryNames = remember(catalog) { catalog.categories.associate { it.id to it.name } }
 
     // Accueil : « Ajouts récents » et « Les mieux notés », puis une rangée par catégorie.
-    val shelves = remember(catalog) {
-        val byCategory = catalog.items.groupBy { it.categoryId }
-        buildList {
-            val recent = catalog.items.filter { it.added > 0 }.sortedByDescending { it.added }.take(SHELF_LIMIT)
-            if (recent.size >= 5) add(VodShelf(SHELF_RECENT, "Ajouts récents", recent))
-            val top = catalog.items
-                .mapNotNull { item -> ratingLabel(item.rating)?.replace(',', '.')?.toDoubleOrNull()?.let { item to it } }
-                .sortedByDescending { it.second }
-                .take(SHELF_LIMIT)
-                .map { it.first }
-            if (top.size >= 5) add(VodShelf(SHELF_TOP, "Les mieux notés", top))
-            catalog.categories.forEach { category ->
-                byCategory[category.id]?.let { add(VodShelf(category.id, category.name, it)) }
-            }
-        }
-    }
+    val shelves = remember(catalog) { shelvesFor(catalog, isMovies) }
 
     val query = state.query.trim()
     val gridMode = query.isNotEmpty() || state.selectedCategory != CAT_ALL || shelves.isEmpty()
@@ -137,7 +157,6 @@ fun MediaScreen(
     val tint = rememberPosterTint(hero?.poster)
 
     // Le titre se masque quand on descend dans la liste.
-    val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     AppShell(

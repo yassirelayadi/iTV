@@ -137,7 +137,7 @@ val AppleEase = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 @Composable
 fun Modifier.appear(): Modifier {
     val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { progress.animateTo(1f, tween(420, easing = AppleEase)) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, tween(300, easing = AppleEase)) }
     return graphicsLayer {
         val p = progress.value
         alpha = p

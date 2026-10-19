@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -68,6 +69,7 @@ fun ChannelsScreen(
     onPlay: (Channel, List<Channel>) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onSettings: () -> Unit,
+    listState: LazyListState,
 ) {
     // Chaînes regardées récemment, la plus récente en premier.
     val recentChannels = remember(state.channels, state.recent) {
@@ -108,7 +110,6 @@ fun ChannelsScreen(
     }
 
     // Le titre se masque quand on descend dans la liste.
-    val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     AppShell(

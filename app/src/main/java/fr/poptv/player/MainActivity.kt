@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +80,10 @@ private fun App(viewModel: AppViewModel) {
     val detail = state.detail
     val manageSection = state.manageSection
     val epg by viewModel.epg.collectAsStateWithLifecycle()
+    // Positions de défilement gardées ici : en revenant d'une fiche, on retrouve l'endroit où on était.
+    val liveList = rememberLazyListState()
+    val moviesList = rememberLazyListState()
+    val seriesList = rememberLazyListState()
 
     when {
         vodPlaying != null -> key(vodPlaying.key) {
@@ -152,6 +157,7 @@ private fun App(viewModel: AppViewModel) {
             onPlay = viewModel::play,
             onToggleFavorite = viewModel::toggleFavorite,
             onSettings = viewModel::openSettings,
+            listState = liveList,
         )
 
         else -> MediaScreen(
@@ -164,6 +170,7 @@ private fun App(viewModel: AppViewModel) {
                 if (state.section == Section.MOVIES) viewModel.openMovie(item) else viewModel.openSeries(item)
             },
             onResume = viewModel::playResume,
+            listState = if (state.section == Section.MOVIES) moviesList else seriesList,
         )
     }
 }
