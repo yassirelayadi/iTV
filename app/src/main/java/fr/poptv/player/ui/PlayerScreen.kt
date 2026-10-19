@@ -1,0 +1,235 @@
+package fr.poptv.player.ui
+
+import android.graphics.Color as AndroidColor
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
+import fr.poptv.player.data.Channel
+import fr.poptv.player.data.Http
+import kotlinx.coroutines.delay
+
+@OptIn(UnstableApi::class)
+@Composable
+fun PlayerScreen(
+    channel: Channel,
+    onZap: (Int) -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+
+    val player = remember {
+        // Tampons réduits pour un zapping rapide.
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 1_000, 2_500)
+            .build()
+        ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent("iTV/0.1"))
+            )
+            .setLoadControl(loadControl)
+            .build()
+            .apply { playWhenReady = true }
+    }
+
+    var buffering by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var overlayTick by remember { mutableIntStateOf(0) }
+    var overlayVisible by remember { mutableStateOf(true) }
+    val focusRequester = remember { FocusRequester() }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                buffering = playbackState == Player.STATE_BUFFERING
+                if (playbackState == Player.STATE_READY) error = null
+            }
+
+            override fun onPlayerError(e: PlaybackException) {
+                buffering = false
+                error = "Lecture impossible (${e.errorCodeName}). OK pour réessayer."
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+
+    LaunchedEffect(channel.id) {
+        error = null
+        buffering = true
+        val item = MediaItem.Builder()
+            .setUri(channel.streamUrl)
+            .apply { if (channel.streamUrl.contains(".m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8) }
+            .build()
+        player.setMediaItem(item)
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    LaunchedEffect(channel.id, overlayTick) {
+        overlayVisible = true
+        delay(4_000)
+        overlayVisible = false
+    }
+
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { player.play() }
+
+    BackHandler(onBack = onBack)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .focusRequester(focusRequester)
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionUp, Key.ChannelUp, Key.PageUp -> {
+                        onZap(+1)
+                        true
+                    }
+                    Key.DirectionDown, Key.ChannelDown, Key.PageDown -> {
+                        onZap(-1)
+                        true
+                    }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                        if (error != null) {
+                            error = null
+                            buffering = true
+                            player.prepare()
+                            player.playWhenReady = true
+                        } else {
+                            overlayTick++
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .focusable(),
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    useController = false
+                    this.player = player
+                    keepScreenOn = true
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    setShutterBackgroundColor(AndroidColor.BLACK)
+                }
+            },
+        )
+
+        if (buffering && error == null) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        }
+
+        error?.let {
+            Text(
+                it,
+                color = ErrorColor,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = overlayVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomStart),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                    .padding(horizontal = 56.dp, vertical = 40.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    if (channel.logo != null) {
+                        AsyncImage(
+                            model = channel.logo,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Surface1),
+                        )
+                    }
+                    Column {
+                        Text(channel.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium)
+                        Text("Haut / Bas pour changer de chaîne", color = TextSecondary, fontSize = 15.sp)
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,76 @@
+name: Compiler l'APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      # Clé de signature : celle du dépôt si les 4 secrets KEYSTORE_* existent (mises à jour
+      # sans désinstaller), sinon une clé temporaire créée pour cette compilation seulement.
+      - name: Préparer la clé de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          KEYSTORE_FILE="$RUNNER_TEMP/itv.jks"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+            echo "Clé de signature du dépôt utilisée."
+          else
+            KEYSTORE_PASSWORD="$(openssl rand -hex 24)"
+            echo "::add-mask::$KEYSTORE_PASSWORD"
+            KEY_ALIAS="itv"
+            KEY_PASSWORD="$KEYSTORE_PASSWORD"
+            keytool -genkeypair -keystore "$KEYSTORE_FILE" -alias "$KEY_ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" -dname "CN=iTV"
+            echo "Clé temporaire créée : désinstalle l'ancienne version avant d'installer celle-ci."
+          fi
+          {
+            echo "ITV_KEYSTORE=$KEYSTORE_FILE"
+            echo "ITV_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "ITV_KEY_ALIAS=$KEY_ALIAS"
+            echo "ITV_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Compiler l'APK (version finale, signée)
+        run: gradle assembleRelease --no-daemon
+
+      - name: Renommer l'APK
+        run: cp app/build/outputs/apk/release/app-release.apk iTV.apk
+
+      - name: Conserver l'APK (onglet Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: iTV-apk
+          path: iTV.apk
+
+      # Publication avec l'outil officiel « gh » déjà présent sur la machine : aucune action tierce.
+      - name: Publier l'APK (lien de téléchargement direct)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view derniere-version >/dev/null 2>&1 || \
+            gh release create derniere-version --title "Dernière version" --notes "APK compilé automatiquement."
+          gh release upload derniere-version iTV.apk --clobber
