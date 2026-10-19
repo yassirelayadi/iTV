@@ -1,8 +1,6 @@
 package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -128,7 +126,7 @@ fun MediaScreen(
         onQuery("")
     }
 
-    // Le bandeau du haut et le fond suivent l'élément sélectionné.
+    // Le fond prend la couleur de l'affiche sélectionnée.
     var focusedInfo by remember { mutableStateOf<HeroInfo?>(null) }
     val onFocusInfo: (HeroInfo) -> Unit = { focusedInfo = it }
     val initialInfo = remember(resume, shelves) {
@@ -195,7 +193,6 @@ fun MediaScreen(
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item(key = "hero") { MediaHero(hero) }
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
                         ResumeRow(resume, onResume, onFocusInfo)
@@ -397,48 +394,5 @@ private fun PosterTile(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
-    }
-}
-
-/** Bandeau du haut : titre, infos et résumé de l'élément sélectionné. */
-@Composable
-private fun MediaHero(info: HeroInfo?) {
-    Crossfade(
-        targetState = info,
-        animationSpec = tween(260, easing = AppleEase),
-        modifier = Modifier.fillMaxWidth().height(124.dp),
-        label = "hero",
-    ) { shown ->
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = ScreenPadding),
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
-    ) {
-        val info = shown
-        if (info != null) {
-            Text(
-                info.title,
-                color = TextPrimary,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (info.meta.isNotEmpty()) {
-                Text(info.meta, color = TextSecondary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (info.plot != null) {
-                Text(
-                    info.plot,
-                    color = TextSecondary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
     }
 }

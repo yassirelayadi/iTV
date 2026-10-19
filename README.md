@@ -25,7 +25,7 @@ L'application ne contient aucune chaîne : elle lit uniquement les flux de **ton
 - Lecteur : touche **Bas** pour ouvrir le panneau d'options à droite — épisode suivant, piste audio, sous-titres, qualité vidéo (flux à plusieurs débits) et vitesse de lecture
 - Lecteur : barre fine qui grossit pendant les sauts, avec l'heure de fin ; carte « Épisode suivant » pendant le générique (lecture automatique après 8 s)
 - Séries : gros bouton « Reprendre S1 · E3 » (ou « Lecture »), menu déroulant des saisons, coche « vu » sur les épisodes terminés
-- Films : bandeau en haut qui suit l'affiche sélectionnée, rangées « Ajouts récents » et « Les mieux notés », note ★ sur les affiches
+- Films : rangées « Ajouts récents » et « Les mieux notés », note ★ sur les affiches
 - Reprise de lecture : barre de progression sur les affiches et rangée « Reprendre »
 - Les catalogues sont mis en cache ; le premier chargement peut être long si le serveur est très fourni
 
