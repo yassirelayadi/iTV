@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "poptv")
@@ -50,6 +51,33 @@ class Store(private val context: Context) {
 
     suspend fun setLastChannel(channelId: String) {
         context.dataStore.edit { it[keyLast] = channelId }
+    }
+
+    // ---- Chaînes récentes (la plus récente en premier) ----
+
+    private val keyRecent = stringPreferencesKey("recent_channels")
+    private val idListSerializer = ListSerializer(String.serializer())
+
+    private fun decodeIds(raw: String?): List<String> =
+        raw?.let { runCatching { json.decodeFromString(idListSerializer, it) }.getOrNull() }.orEmpty()
+
+    val recentChannels: Flow<List<String>> = context.dataStore.data.map { decodeIds(it[keyRecent]) }
+
+    suspend fun addRecent(channelId: String) {
+        context.dataStore.edit { prefs ->
+            val updated = (listOf(channelId) + decodeIds(prefs[keyRecent]).filterNot { it == channelId }).take(15)
+            prefs[keyRecent] = json.encodeToString(idListSerializer, updated)
+        }
+    }
+
+    // ---- Films et épisodes terminés (coche « vu ») ----
+
+    private val keyWatched = stringSetPreferencesKey("watched")
+
+    val watched: Flow<Set<String>> = context.dataStore.data.map { it[keyWatched].orEmpty() }
+
+    suspend fun markWatched(key: String) {
+        context.dataStore.edit { prefs -> prefs[keyWatched] = prefs[keyWatched].orEmpty() + key }
     }
 
     // ---- Catégories masquées (une liste par section) ----

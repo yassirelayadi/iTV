@@ -1,6 +1,7 @@
 package fr.poptv.player.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
@@ -28,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -40,6 +43,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.request.ImageRequest
 import androidx.compose.ui.zIndex
 
@@ -52,17 +56,19 @@ import androidx.compose.ui.zIndex
 fun FocusItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
+    shape: Shape = RoundedCornerShape(20.dp),
     focusScale: Float = 1.06f,
     idleColor: Color = Surface1,
     focusedColor: Color = Surface3,
     focusRing: Boolean = false,
+    ringColor: Color = Accent,
     onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) focusScale else 1f, tween(160), label = "focusScale")
     val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(160), label = "focusColor")
+    val elevation by animateDpAsState(if (focused) 18.dp else 0.dp, tween(160), label = "focusShadow")
 
     Box(
         modifier = modifier
@@ -71,9 +77,10 @@ fun FocusItem(
                 scaleX = scale
                 scaleY = scale
             }
+            .shadow(elevation, shape, clip = false)
             .clip(shape)
             .background(color)
-            .then(if (focusRing && focused) Modifier.border(2.dp, Color.White, shape) else Modifier)
+            .then(if (focusRing && focused) Modifier.border(3.dp, ringColor, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
@@ -95,12 +102,12 @@ fun Pill(
         modifier = modifier,
         shape = RoundedCornerShape(50),
         focusScale = 1.08f,
-        idleColor = if (selected) Surface2 else Color.Transparent,
+        idleColor = if (selected) Accent else Color.Transparent,
         focusedColor = Color.White,
     ) { focused ->
         val color = when {
             focused -> Color.Black
-            selected -> TextPrimary
+            selected -> Color.White
             else -> TextSecondary
         }
         Row(
@@ -223,5 +230,27 @@ fun rememberImage(url: String?, width: Int, height: Int): ImageRequest {
             .size(width, height)
             .crossfade(200)
             .build()
+    }
+}
+
+/** Pastille rouge « EN DIRECT » des chaînes. */
+@Composable
+fun LiveBadge(modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.TextUnit = 10.sp) {
+    Row(
+        modifier = modifier
+            .background(Color(0xFFFF3B30), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(modifier = Modifier.size(5.dp).background(Color.White, CircleShape))
+        Text(
+            "EN DIRECT",
+            color = Color.White,
+            fontSize = fontSize,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.4.sp,
+            maxLines = 1,
+        )
     }
 }

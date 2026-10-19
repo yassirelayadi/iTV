@@ -49,6 +49,8 @@ data class VodItem(
     val year: String? = null,
     val rating: String? = null,
     val plot: String? = null,
+    /** Date d'ajout au catalogue (secondes depuis 1970), 0 si inconnue. */
+    val added: Long = 0,
 )
 
 @Serializable

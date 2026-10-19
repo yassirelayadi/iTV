@@ -2,7 +2,16 @@ package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import fr.poptv.player.data.Season
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
@@ -54,6 +63,7 @@ import fr.poptv.player.data.ResumeEntry
 fun DetailScreen(
     detail: Detail,
     resumeFor: (String) -> ResumeEntry?,
+    watched: Set<String>,
     onPlayMovie: (fromStart: Boolean) -> Unit,
     onPlayEpisode: (Episode, List<Episode>) -> Unit,
     onBack: () -> Unit,
@@ -63,10 +73,37 @@ fun DetailScreen(
     val item = detail.item
     val info = detail.info
     val focus = remember { FocusRequester() }
-    var seasonIndex by remember { mutableIntStateOf(0) }
+    // Prochain épisode à lire : celui en cours, sinon celui qui suit le dernier épisode vu.
+    val target = if (detail.isSeries && detail.seasons.isNotEmpty()) nextTarget(detail.seasons, resumeFor, watched) else null
+    var seasonIndex by remember(detail.seasons) {
+        mutableIntStateOf(detail.seasons.indexOfFirst { it.number == target?.season?.number }.coerceAtLeast(0))
+    }
     var focusedEpisodeId by remember { mutableStateOf<String?>(null) }
 
-    // Focus initial : le bouton de lecture (film) ou le premier épisode (série, une fois chargé).
+    // Menu déroulant des saisons.
+    var seasonMenuOpen by remember { mutableStateOf(false) }
+    var menuTick by remember { mutableIntStateOf(0) }
+    val optionFocus = remember { FocusRequester() }
+    val seasonFocus = remember { FocusRequester() }
+    val closeSeasonMenu: () -> Unit = {
+        seasonMenuOpen = false
+        menuTick++
+    }
+    BackHandler(enabled = seasonMenuOpen) { closeSeasonMenu() }
+    LaunchedEffect(seasonMenuOpen) {
+        if (seasonMenuOpen) {
+            delay(50)
+            runCatching { optionFocus.requestFocus() }
+        }
+    }
+    LaunchedEffect(menuTick) {
+        if (menuTick > 0) {
+            delay(50)
+            runCatching { seasonFocus.requestFocus() }
+        }
+    }
+
+    // Focus initial : le bouton de lecture (film ou série, une fois chargée).
     val focusReady = if (detail.isSeries) !detail.loading else true
     LaunchedEffect(focusReady) {
         if (focusReady) runCatching { focus.requestFocus() }
@@ -177,26 +214,49 @@ fun DetailScreen(
                             val shown = season.episodes.firstOrNull { it.id == focusedEpisodeId }
                                 ?: season.episodes.first()
 
-                            if (detail.seasons.size > 1) {
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(vertical = 2.dp),
-                                ) {
-                                    itemsIndexed(detail.seasons, key = { _, s -> s.number }) { index, s ->
-                                        Pill(
-                                            text = if (s.number == 0) "Spéciaux" else "Saison ${s.number}",
-                                            onClick = {
-                                                seasonIndex = index
-                                                focusedEpisodeId = null
-                                            },
-                                            selected = s.number == season.number,
-                                        )
-                                    }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (target != null) {
+                                    PrimaryButton(
+                                        text = target.label,
+                                        icon = Icons.Filled.PlayArrow,
+                                        onClick = { onPlayEpisode(target.episode, target.season.episodes) },
+                                        modifier = Modifier.focusRequester(focus),
+                                    )
                                 }
+                                if (detail.seasons.size > 1) {
+                                    SeasonButton(
+                                        label = seasonLabel(season),
+                                        onClick = {
+                                            if (seasonMenuOpen) {
+                                                closeSeasonMenu()
+                                            } else {
+                                                seasonMenuOpen = true
+                                            }
+                                        },
+                                        modifier = Modifier.focusRequester(seasonFocus),
+                                    )
+                                }
+                                Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
                             }
 
-                            // Épisode sélectionné : titre et résumé, mis à jour au fil du focus.
-                            EpisodePanel(shown, fallbackPlot = plot)
+                            if (seasonMenuOpen) {
+                                SeasonMenu(
+                                    seasons = detail.seasons,
+                                    selectedIndex = seasonIndex,
+                                    optionFocus = optionFocus,
+                                    onSelect = { index ->
+                                        seasonIndex = index
+                                        focusedEpisodeId = null
+                                        closeSeasonMenu()
+                                    },
+                                )
+                            } else {
+                                // Épisode sélectionné : titre et résumé, mis à jour au fil du focus.
+                                EpisodePanel(shown, fallbackPlot = plot)
+                            }
 
                             Spacer(Modifier.weight(1f))
 
@@ -204,14 +264,14 @@ fun DetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(vertical = 10.dp),
                             ) {
-                                itemsIndexed(season.episodes, key = { _, ep -> ep.id }) { index, episode ->
+                                itemsIndexed(season.episodes, key = { _, ep -> ep.id }) { _, episode ->
                                     EpisodeTile(
                                         episode = episode,
                                         resume = resumeFor("e:${episode.id}"),
+                                        watched = "e:${episode.id}" in watched,
                                         onClick = { onPlayEpisode(episode, season.episodes) },
                                         onFocused = { focusedEpisodeId = episode.id },
                                         modifier = Modifier.width(220.dp),
-                                        focusModifier = if (index == 0) Modifier.focusRequester(focus) else Modifier,
                                     )
                                 }
                             }
@@ -259,60 +319,205 @@ private fun EpisodePanel(episode: Episode, fallbackPlot: String?) {
 private fun EpisodeTile(
     episode: Episode,
     resume: ResumeEntry?,
+    watched: Boolean,
     onClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
-    focusModifier: Modifier = Modifier,
 ) {
-    FocusItem(
-        onClick = onClick,
-        modifier = modifier
-            .aspectRatio(16f / 9f)
-            .then(focusModifier)
-            .onFocusChanged { if (it.hasFocus) onFocused() },
-        focusScale = 1.08f,
-        focusRing = true,
+    var tileFocused by remember { mutableStateOf(false) }
+    val titleColor by animateColorAsState(if (tileFocused) TextPrimary else TextSecondary, label = "episodeTitle")
+    val status = when {
+        watched -> "Vu"
+        resume != null -> "Reprendre à ${formatTime(resume.positionMs)}"
+        else -> null
+    }
+    val meta = listOfNotNull(status, prettyDuration(episode.duration)).joinToString("  ·  ")
+
+    Column(
+        modifier = modifier.onFocusChanged {
+            tileFocused = it.hasFocus
+            if (it.hasFocus) onFocused()
+        },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (episode.image != null) {
-            AsyncImage(
-                model = rememberImage(episode.image, 480, 270),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+        FocusItem(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+            focusScale = 1.08f,
+            focusRing = true,
+        ) {
+            if (episode.image != null) {
+                AsyncImage(
+                    model = rememberImage(episode.image, 480, 270),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            // Numéro de l'épisode, en bas à gauche de la vignette.
+            Text(
+                "${episode.number}",
+                color = if (episode.image != null) Color.White else TextSecondary,
+                fontSize = if (episode.image != null) 15.sp else 34.sp,
+                fontWeight = if (episode.image != null) FontWeight.SemiBold else FontWeight.Light,
+                modifier = if (episode.image != null) {
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 10.dp, bottom = 10.dp)
+                        .background(Color(0x99000000), RoundedCornerShape(50))
+                        .padding(horizontal = 9.dp, vertical = 2.dp)
+                } else {
+                    Modifier.align(Alignment.Center)
+                },
             )
-        }
-        // Numéro de l'épisode, en bas à gauche de la vignette.
-        Text(
-            "${episode.number}",
-            color = if (episode.image != null) Color.White else TextSecondary,
-            fontSize = if (episode.image != null) 15.sp else 34.sp,
-            fontWeight = if (episode.image != null) FontWeight.SemiBold else FontWeight.Light,
-            modifier = if (episode.image != null) {
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 10.dp, bottom = 10.dp)
-                    .background(Color(0x99000000), RoundedCornerShape(50))
-                    .padding(horizontal = 9.dp, vertical = 2.dp)
-            } else {
-                Modifier.align(Alignment.Center)
-            },
-        )
-        if (resume != null && resume.durationMs > 0) {
-            val fraction = (resume.positionMs.toFloat() / resume.durationMs).coerceIn(0f, 1f)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .background(Color(0x66FFFFFF)),
-            ) {
+            // Coche « vu », en haut à droite.
+            if (watched) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .fillMaxHeight()
-                        .background(Color.White),
-                )
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(22.dp)
+                        .background(Color.White, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(AppIcons.Check, contentDescription = "Vu", tint = Color.Black, modifier = Modifier.size(14.dp))
+                }
+            }
+            // Barre de progression si l'épisode est commencé.
+            if (resume != null && resume.durationMs > 0) {
+                val fraction = (resume.positionMs.toFloat() / resume.durationMs).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .background(Color(0x66FFFFFF)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .fillMaxHeight()
+                            .background(Color.White),
+                    )
+                }
+            }
+        }
+        Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+            Text(
+                episode.title,
+                color = titleColor,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (meta.isNotEmpty()) {
+                Text(meta, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
+}
+
+private fun seasonLabel(season: Season): String =
+    if (season.number == 0) "Spéciaux" else "Saison ${season.number}"
+
+/** Bouton « Saison N ▾ » qui ouvre le menu des saisons. */
+@Composable
+private fun SeasonButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    FocusItem(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        focusScale = 1.08f,
+        idleColor = Surface2,
+        focusedColor = Color.White,
+    ) { focused ->
+        val color = if (focused) Color.Black else TextPrimary
+        Row(
+            modifier = Modifier.padding(start = 20.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(label, color = color, fontWeight = FontWeight.Medium, maxLines = 1)
+            Icon(AppIcons.CaretDown, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+/** Liste des saisons, sous le bouton : coche sur la saison affichée. */
+@Composable
+private fun SeasonMenu(
+    seasons: List<Season>,
+    selectedIndex: Int,
+    optionFocus: FocusRequester,
+    onSelect: (Int) -> Unit,
+) {
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .width(230.dp)
+            .heightIn(max = 150.dp)
+            .background(Color(0xF2121214), RoundedCornerShape(20.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        itemsIndexed(seasons, key = { _, s -> s.number }) { index, s ->
+            FocusItem(
+                onClick = { onSelect(index) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (index == selectedIndex) Modifier.focusRequester(optionFocus) else Modifier),
+                shape = RoundedCornerShape(14.dp),
+                focusScale = 1.03f,
+                idleColor = Color.Transparent,
+                focusedColor = Color.White,
+            ) { focused ->
+                val color = if (focused) Color.Black else TextPrimary
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(seasonLabel(s), color = color, fontSize = 16.sp, maxLines = 1)
+                    if (index == selectedIndex) {
+                        Icon(AppIcons.Check, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class PlayTarget(val episode: Episode, val season: Season, val label: String)
+
+/**
+ * Épisode que propose le gros bouton : celui en cours (le plus récent), sinon celui qui suit le dernier
+ * épisode vu, sinon le premier. Les spéciaux (saison 0) ne comptent que s'il n'y a rien d'autre.
+ */
+private fun nextTarget(
+    seasons: List<Season>,
+    resumeFor: (String) -> ResumeEntry?,
+    watched: Set<String>,
+): PlayTarget? {
+    val all = seasons.flatMap { s -> s.episodes.map { e -> s to e } }
+    if (all.isEmpty()) return null
+
+    var inProgress: Triple<Season, Episode, ResumeEntry>? = null
+    for ((s, e) in all) {
+        val entry = resumeFor("e:${e.id}") ?: continue
+        if (inProgress == null || entry.updatedAt > inProgress.third.updatedAt) inProgress = Triple(s, e, entry)
+    }
+    if (inProgress != null) {
+        val (s, e, _) = inProgress
+        return PlayTarget(e, s, "Reprendre S${e.season} · E${e.number}")
+    }
+
+    val ordered = all.filter { it.first.number != 0 }.ifEmpty { all }
+    val lastWatched = ordered.indexOfLast { (_, e) -> "e:${e.id}" in watched }
+    val pick = if (lastWatched >= 0) ordered.getOrNull(lastWatched + 1) else ordered.first()
+    if (pick != null) {
+        return PlayTarget(pick.second, pick.first, "Lecture S${pick.second.season} · E${pick.second.number}")
+    }
+    val first = ordered.first()
+    return PlayTarget(first.second, first.first, "Revoir S${first.second.season} · E${first.second.number}")
 }

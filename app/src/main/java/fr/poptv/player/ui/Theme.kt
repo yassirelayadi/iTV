@@ -35,6 +35,9 @@ val TextPrimary = Color(0xFFF5F5F7)
 val TextSecondary = Color(0xFFA1A1A6)
 val ErrorColor = Color(0xFFFF453A)
 
+/** Bleu d'accent : sélection (onglets, anneau de focus, menu latéral) et « i » du logo. */
+val Accent = Color(0xFF0A84FF)
+
 /**
  * Police de toute l'app : Inter, la police libre la plus proche de la police d'Apple (SF Pro),
  * dont la licence n'autorise pas l'usage sur Android.
@@ -55,7 +58,7 @@ val LogoFont = FontFamily(Font(R.font.sora_bold, FontWeight.Bold))
 fun LogoText(size: TextUnit, modifier: Modifier = Modifier) {
     Text(
         text = buildAnnotatedString {
-            withStyle(SpanStyle(color = Color(0xFF0A84FF))) { append("i") }
+            withStyle(SpanStyle(color = Accent)) { append("i") }
             append("TV")
         },
         fontFamily = LogoFont,

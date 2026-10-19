@@ -3,7 +3,15 @@ package fr.poptv.player.ui
 import android.graphics.Color as AndroidColor
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -64,6 +73,10 @@ import fr.poptv.player.VodPlayback
 import fr.poptv.player.data.Http
 import kotlinx.coroutines.delay
 
+/** La carte « Épisode suivant » apparaît pendant les 45 dernières secondes et lance la suite après 8 s. */
+private const val NEXT_COUNTDOWN = 8
+private const val CREDITS_WINDOW_MS = 45_000L
+
 /** Lecteur de films et d'épisodes : pause, saut de 10 s, barre de progression, reprise. */
 @OptIn(UnstableApi::class)
 @Composable
@@ -96,12 +109,20 @@ fun VodPlayerScreen(
     var overlayVisible by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
 
-    // Options : rangée de boutons (touche Bas) et panneau de choix.
+    // Options : panneau latéral (touche Bas).
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
-    var optionsActive by remember { mutableStateOf(false) }
-    var menu by remember { mutableStateOf<OptionsMenu?>(null) }
-    var lastButton by remember { mutableIntStateOf(0) }
-    val buttonFocus = remember { List(6) { FocusRequester() } }
+    var panelOpen by remember { mutableStateOf(false) }
+
+    // Barre de progression : fine au repos, épaisse pendant un saut.
+    var seekTick by remember { mutableIntStateOf(0) }
+    var seeking by remember { mutableStateOf(false) }
+
+    // Carte « Épisode suivant » pendant le générique.
+    var nextDismissed by remember { mutableStateOf(false) }
+    var countdown by remember { mutableIntStateOf(NEXT_COUNTDOWN) }
+    val nextFocus = remember { FocusRequester() }
+    val inCredits = playback.hasNext && !nextDismissed && error == null &&
+        duration > 300_000L && duration - position <= CREDITS_WINDOW_MS
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -162,19 +183,34 @@ fun VodPlayerScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-    // Le focus suit l'ouverture et la fermeture de la rangée d'options et du panneau.
-    LaunchedEffect(optionsActive) {
-        if (optionsActive) {
-            delay(60)
-            runCatching { buttonFocus[0].requestFocus() }
-        } else {
-            runCatching { focusRequester.requestFocus() }
+    // À la fermeture du panneau, le focus revient à l'écran de lecture.
+    LaunchedEffect(panelOpen) {
+        if (!panelOpen) runCatching { focusRequester.requestFocus() }
+    }
+
+    // La barre grossit pendant 2,5 s après chaque saut.
+    LaunchedEffect(seekTick) {
+        if (seekTick > 0) {
+            seeking = true
+            delay(2_500)
+            seeking = false
         }
     }
-    LaunchedEffect(menu) {
-        if (menu == null && optionsActive) {
-            delay(60)
-            runCatching { buttonFocus[lastButton.coerceIn(0, buttonFocus.lastIndex)].requestFocus() }
+
+    // Générique : la carte prend le focus, puis l'épisode suivant démarre après le compte à rebours.
+    LaunchedEffect(inCredits) {
+        if (inCredits) {
+            delay(80)
+            if (!panelOpen) runCatching { nextFocus.requestFocus() }
+            var left = NEXT_COUNTDOWN
+            while (left > 0) {
+                countdown = left
+                delay(1_000)
+                if (!paused) left--
+            }
+            latestOnNext()
+        } else if (!panelOpen) {
+            runCatching { focusRequester.requestFocus() }
         }
     }
 
@@ -185,8 +221,8 @@ fun VodPlayerScreen(
 
     BackHandler {
         when {
-            menu != null -> menu = null
-            optionsActive -> optionsActive = false
+            panelOpen -> panelOpen = false
+            inCredits -> nextDismissed = true
             else -> onBack()
         }
     }
@@ -198,6 +234,7 @@ fun VodPlayerScreen(
         player.seekTo(target)
         position = target
         overlayTick++
+        seekTick++
     }
 
     Box(
@@ -207,16 +244,8 @@ fun VodPlayerScreen(
             .focusRequester(focusRequester)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                // Panneau ouvert : ses boutons gèrent les touches.
-                if (menu != null) return@onKeyEvent false
-                // Rangée d'options affichée : Haut la referme, le reste déplace le focus.
-                if (optionsActive) {
-                    if (event.key == Key.DirectionUp) {
-                        optionsActive = false
-                        return@onKeyEvent true
-                    }
-                    return@onKeyEvent false
-                }
+                // Panneau ouvert ou carte « Épisode suivant » affichée : leurs boutons gèrent les touches.
+                if (panelOpen || inCredits) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> {
                         seekBy(-10_000)
@@ -260,12 +289,12 @@ fun VodPlayerScreen(
                     }
                     Key.DirectionDown -> {
                         overlayTick++
-                        optionsActive = true
+                        panelOpen = true
                         true
                     }
                     Key.DirectionUp, Key.Menu -> {
                         overlayTick++
-                        if (event.key == Key.Menu) optionsActive = true
+                        if (event.key == Key.Menu) panelOpen = true
                         true
                     }
                     else -> false
@@ -315,13 +344,34 @@ fun VodPlayerScreen(
             )
         }
 
+        val showOverlay = overlayVisible || paused || panelOpen
+
+        // Au repos, seule une fine ligne de progression reste visible en bas de l'écran.
+        if (!showOverlay && duration > 0) {
+            val restFraction = (position.toFloat() / duration).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(Color(0x40FFFFFF)),
+            ) {
+                Box(modifier = Modifier.fillMaxWidth(restFraction).fillMaxHeight().background(Color.White))
+            }
+        }
+
         AnimatedVisibility(
-            visible = overlayVisible || paused || optionsActive || menu != null,
+            visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart),
         ) {
             val fraction = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
+            val barHeight by animateDpAsState(if (seeking) 12.dp else 5.dp, tween(150), label = "progressHeight")
+            val remaining = (duration - position).coerceAtLeast(0L)
+            val speed = player.playbackParameters.speed.coerceAtLeast(0.1f)
+            val endClock = SimpleDateFormat("HH:mm", Locale.getDefault())
+                .format(Date(System.currentTimeMillis() + (remaining / speed).toLong()))
 
             Column(
                 modifier = Modifier
@@ -347,72 +397,79 @@ fun VodPlayerScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color(0x40FFFFFF)),
-                ) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(14.dp)) {
+                    val trackWidth = maxWidth
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(fraction)
-                            .fillMaxHeight()
-                            .background(Color.White),
-                    )
+                            .align(Alignment.CenterStart)
+                            .fillMaxWidth()
+                            .height(barHeight)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0x40FFFFFF)),
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Color.White))
+                    }
+                    if (seeking) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .offset(x = trackWidth * fraction - 7.dp)
+                                .size(14.dp)
+                                .background(Color.White, CircleShape),
+                        )
+                    }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(formatTime(position), color = TextSecondary, fontSize = 14.sp)
-                    Text(if (duration > 0) formatTime(duration) else "", color = TextSecondary, fontSize = 14.sp)
-                }
-                if (optionsActive) {
-                    val audio = audioOptions(player, tracks)
-                    val subs = subtitleOptions(player, tracks)
-                    val quality = qualityOptions(player, tracks)
-                    val buttons = buildList<Triple<String, ImageVector, () -> Unit>> {
-                        if (playback.hasNext) add(Triple("Épisode suivant", AppIcons.SkipNext, { latestOnNext() }))
-                        if (audio.size > 1) add(Triple("Audio", AppIcons.Audio, { menu = OptionsMenu.AUDIO }))
-                        if (subs.isNotEmpty()) add(Triple("Sous-titres", AppIcons.Subtitles, { menu = OptionsMenu.SUBTITLES }))
-                        if (quality.isNotEmpty()) add(Triple("Qualité", AppIcons.Quality, { menu = OptionsMenu.QUALITY }))
-                        add(Triple("Vitesse", AppIcons.Speed, { menu = OptionsMenu.SPEED }))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        buttons.forEachIndexed { index, (label, icon, action) ->
-                            ControlButton(
-                                text = label,
-                                icon = icon,
-                                onClick = {
-                                    lastButton = index
-                                    action()
-                                },
-                                modifier = Modifier.focusRequester(buttonFocus[index]),
-                            )
-                        }
-                    }
-                } else {
                     Text(
-                        "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
+                        if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
                         color = TextSecondary,
                         fontSize = 14.sp,
                     )
                 }
+                Text(
+                    "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                )
             }
         }
 
-        menu?.let { current ->
-            val options = when (current) {
-                OptionsMenu.AUDIO -> audioOptions(player, tracks)
-                OptionsMenu.SUBTITLES -> subtitleOptions(player, tracks)
-                OptionsMenu.QUALITY -> qualityOptions(player, tracks)
-                OptionsMenu.SPEED -> speedOptions(player)
-            }
-            OptionsPanel(
-                title = current.title,
-                options = options,
-                onClose = { menu = null },
+        // Carte « Épisode suivant » pendant le générique.
+        if (inCredits && !panelOpen) {
+            NextEpisodeCard(
+                label = playback.next,
+                poster = playback.poster,
+                seconds = countdown,
+                total = NEXT_COUNTDOWN,
+                onPlay = { latestOnNext() },
+                onClose = { nextDismissed = true },
+                playFocus = nextFocus,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 56.dp, bottom = 150.dp),
+            )
+        }
+
+        // Options : panneau latéral sur toute la hauteur.
+        if (panelOpen) {
+            Box(modifier = Modifier.fillMaxSize().background(Color(0x59000000)))
+            val audio = audioOptions(player, tracks)
+            val subs = subtitleOptions(player, tracks)
+            val quality = qualityOptions(player, tracks)
+            val sections = buildList {
+                if (playback.hasNext) {
+                    add(PanelSection("Épisode suivant", AppIcons.SkipNext, listOf(TrackOption("Lire maintenant", false) { latestOnNext() })))
+                }
+                if (audio.size > 1) add(PanelSection("Audio", AppIcons.Audio, audio))
+                if (subs.isNotEmpty()) add(PanelSection("Sous-titres", AppIcons.Subtitles, subs))
+                if (quality.isNotEmpty()) add(PanelSection("Qualité", AppIcons.Quality, quality))
+                add(PanelSection("Vitesse", AppIcons.Speed, speedOptions(player)))
+            }
+            PlayerSidePanel(
+                sections = sections,
+                onClose = { panelOpen = false },
+                modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
     }

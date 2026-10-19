@@ -43,6 +43,7 @@ data class VodPlayback(
     val startMs: Long,
     val hasNext: Boolean,
     val subtitle: String? = null, // titre de l'épisode, affiché sous le titre dans le lecteur
+    val next: String? = null, // libellé de l'épisode suivant (« S1 E4  Titre »), pour la carte de fin
 )
 
 /**
@@ -75,6 +76,8 @@ data class UiState(
     val mediaError: String? = null,
     val detail: Detail? = null,
     val resume: List<ResumeEntry> = emptyList(),
+    val recent: List<String> = emptyList(),
+    val watched: Set<String> = emptySet(),
     val vodPlaying: VodPlayback? = null,
     // Réglages et catégories masquées
     val hiddenLive: Set<String> = emptySet(),
@@ -134,6 +137,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             store.resume.collect { list -> _state.update { it.copy(resume = list) } }
         }
         viewModelScope.launch {
+            store.recentChannels.collect { ids -> _state.update { it.copy(recent = ids) } }
+        }
+        viewModelScope.launch {
+            store.watched.collect { keys -> _state.update { it.copy(watched = keys) } }
+        }
+        viewModelScope.launch {
             // Les catégories masquées sont lues avant la première liste, pour éviter un flash.
             val hidden = store.loadHidden()
             _state.update {
@@ -169,7 +178,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             repo.clearCache()
             credentials = null
             _state.update {
-                UiState(loading = false, needsLogin = true, favorites = it.favorites, resume = it.resume)
+                UiState(
+                    loading = false,
+                    needsLogin = true,
+                    favorites = it.favorites,
+                    resume = it.resume,
+                    recent = it.recent,
+                    watched = it.watched,
+                )
             }
         }
     }
@@ -457,6 +473,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 vodPlaying = current.copy(
                     startMs = if (fromStart) 0L else resumePosition(current.key),
                     hasNext = queueIndex < queue.lastIndex,
+                    next = nextLabel(),
                 )
             )
         }
@@ -483,12 +500,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** « S1 E4  Titre de l'épisode » pour l'épisode qui suit celui en cours, ou null. */
+    private fun nextLabel(): String? {
+        val next = queue.getOrNull(queueIndex + 1) ?: return null
+        val number = next.title.substringAfterLast(" · ")
+        return listOfNotNull(number, next.subtitle).joinToString("  ")
+    }
+
     /** Fin de lecture : épisode suivant s'il y en a un, sinon retour à l'écran précédent. */
     fun onVodEnded() {
         if (queueIndex in 0 until queue.lastIndex) {
             queueIndex++
             val next = queue[queueIndex]
-            _state.update { it.copy(vodPlaying = next.copy(hasNext = queueIndex < queue.lastIndex)) }
+            _state.update {
+                it.copy(vodPlaying = next.copy(hasNext = queueIndex < queue.lastIndex, next = nextLabel()))
+            }
         } else {
             stopVod()
         }
@@ -504,6 +530,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             if (durationMs > 0 && positionMs >= durationMs * 95 / 100) {
                 store.removeResume(playback.key)
+                store.markWatched(playback.key)
             } else if (positionMs > 30_000) {
                 store.saveResume(
                     ResumeEntry(
@@ -525,7 +552,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun play(channel: Channel, among: List<Channel>) {
         _state.update { it.copy(playing = resolve(channel), zapList = among) }
-        viewModelScope.launch { store.setLastChannel(channel.id) }
+        viewModelScope.launch {
+            store.setLastChannel(channel.id)
+            store.addRecent(channel.id)
+        }
     }
 
     fun stop() = _state.update { it.copy(playing = null) }

@@ -1,11 +1,18 @@
 package fr.poptv.player.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
@@ -35,14 +42,6 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import java.util.Locale
-
-/** Menus du lecteur de films et d'épisodes. */
-internal enum class OptionsMenu(val title: String) {
-    AUDIO("Audio"),
-    SUBTITLES("Sous-titres"),
-    QUALITY("Qualité vidéo"),
-    SPEED("Vitesse"),
-}
 
 internal data class TrackOption(val label: String, val selected: Boolean, val onSelect: () -> Unit)
 
@@ -161,67 +160,66 @@ internal fun speedOptions(player: Player): List<TrackOption> =
         TrackOption(label, player.playbackParameters.speed == speed) { player.setPlaybackSpeed(speed) }
     }
 
-/** Bouton de la rangée d'options du lecteur : translucide, blanc au focus. */
-@Composable
-internal fun ControlButton(
-    text: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FocusItem(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        focusScale = 1.08f,
-        idleColor = Color(0x40FFFFFF),
-        focusedColor = Color.White,
-    ) { focused ->
-        val color = if (focused) Color.Black else Color.White
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-            Text(text, color = color, fontWeight = FontWeight.Medium, fontSize = 15.sp, maxLines = 1)
-        }
-    }
+/** Une section du panneau latéral du lecteur (Audio, Sous-titres, Qualité, Vitesse…). */
+internal class PanelSection(val title: String, val icon: ImageVector, val options: List<TrackOption>)
+
+private sealed interface PanelRow {
+    class Header(val title: String, val icon: ImageVector) : PanelRow
+    class Choice(val option: TrackOption) : PanelRow
 }
 
-/** Panneau de choix (audio, sous-titres, qualité, vitesse) : liste verticale, coche sur le choix actuel. */
+/**
+ * Panneau latéral sur toute la hauteur, à droite : toutes les options du lecteur d'un coup.
+ * Le focus démarre sur le choix actuel de la première section ; une coche marque chaque choix actif.
+ */
 @Composable
-internal fun OptionsPanel(
-    title: String,
-    options: List<TrackOption>,
+internal fun PlayerSidePanel(
+    sections: List<PanelSection>,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val initial = options.indexOfFirst { it.selected }.coerceAtLeast(0)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initial)
+    val rows = sections.flatMap { section ->
+        listOf<PanelRow>(PanelRow.Header(section.title, section.icon)) + section.options.map { PanelRow.Choice(it) }
+    }
+    val initial = rows.indexOfFirst { it is PanelRow.Choice && it.option.selected }
+        .takeIf { it >= 0 } ?: rows.indexOfFirst { it is PanelRow.Choice }
+    val listState = rememberLazyListState()
     val firstFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
+    LaunchedEffect(Unit) {
+        delay(60)
+        if (runCatching { firstFocus.requestFocus() }.isFailure) {
+            listState.scrollToItem(initial.coerceAtLeast(0))
+            delay(60)
+            runCatching { firstFocus.requestFocus() }
+        }
+    }
 
     Column(
         modifier = modifier
-            .width(340.dp)
-            .background(Color(0xF2121214), RoundedCornerShape(22.dp))
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .fillMaxHeight()
+            .width(380.dp)
+            .background(Color(0xF5161618))
+            .padding(horizontal = 22.dp, vertical = 30.dp),
     ) {
-        Text(title, color = TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 8.dp))
-        if (options.isEmpty()) {
-            Text("Aucun choix disponible.", color = TextSecondary, modifier = Modifier.padding(8.dp))
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.heightIn(max = 300.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                itemsIndexed(options) { index, option ->
-                    FocusItem(
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            itemsIndexed(rows) { index, row ->
+                when (row) {
+                    is PanelRow.Header -> Row(
+                        modifier = Modifier.padding(start = 8.dp, top = if (index == 0) 0.dp else 18.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(row.icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                        Text(row.title, color = TextSecondary, fontSize = 14.sp)
+                    }
+
+                    is PanelRow.Choice -> FocusItem(
                         onClick = {
-                            option.onSelect()
+                            row.option.onSelect()
                             onClose()
                         },
                         modifier = Modifier
@@ -232,26 +230,115 @@ internal fun OptionsPanel(
                         idleColor = Color.Transparent,
                         focusedColor = Color.White,
                     ) { focused ->
+                        val color = if (focused) Color.Black else TextPrimary
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                option.label,
-                                color = if (focused) Color.Black else TextPrimary,
+                                row.option.label,
+                                color = color,
                                 fontSize = 16.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
                             )
-                            if (option.selected) {
-                                Text("✓", color = if (focused) Color.Black else TextPrimary, fontSize = 16.sp)
+                            if (row.option.selected) {
+                                Icon(AppIcons.Check, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** Carte « Épisode suivant » affichée pendant le générique, avec un compte à rebours. */
+@Composable
+internal fun NextEpisodeCard(
+    label: String?,
+    poster: String?,
+    seconds: Int,
+    total: Int,
+    onPlay: () -> Unit,
+    onClose: () -> Unit,
+    playFocus: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .width(460.dp)
+            .background(Color(0xF01C1C1E), RoundedCornerShape(24.dp))
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(150.dp)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Surface2),
+        ) {
+            if (poster != null) {
+                AsyncImage(
+                    model = rememberImage(poster, 300, 170),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(Color(0x59FFFFFF)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(((total - seconds + 1).toFloat() / total).coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(Color.White),
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("Épisode suivant · dans $seconds s", color = TextSecondary, fontSize = 12.sp)
+            Text(
+                label.orEmpty(),
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CardButton("Lire", primary = true, onClick = onPlay, modifier = Modifier.focusRequester(playFocus))
+                CardButton("Fermer", primary = false, onClick = onClose)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardButton(text: String, primary: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    FocusItem(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        focusScale = 1.08f,
+        idleColor = if (primary) Color(0xFFD1D1D6) else Color(0x40FFFFFF),
+        focusedColor = Color.White,
+    ) { focused ->
+        val color = if (focused || primary) Color.Black else Color.White
+        Text(
+            text,
+            color = color,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp),
+        )
     }
 }

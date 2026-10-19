@@ -155,6 +155,7 @@ object XtreamClient {
                 categoryId = category,
                 ext = o.text("container_extension") ?: "mp4",
                 rating = o.text("rating"),
+                added = o.str("added")?.toLongOrNull() ?: 0L,
             )
         }
 
@@ -202,6 +203,7 @@ object XtreamClient {
                 year = (o.text("year") ?: o.text("releaseDate") ?: o.text("release_date"))?.take(4),
                 rating = o.text("rating"),
                 plot = o.text("plot"),
+                added = o.str("last_modified")?.toLongOrNull() ?: 0L,
             )
         }
 

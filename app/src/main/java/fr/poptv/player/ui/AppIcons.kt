@@ -13,6 +13,38 @@ object AppIcons {
             .addPath(pathData = addPathNodes(path), fill = SolidColor(Color.Black))
             .build()
 
+    val Tv: ImageVector by lazy {
+        icon(
+            "Tv",
+            "M21,3H3C1.9,3 1,3.9 1,5v12c0,1.1 0.9,2 2,2h5v2h8v-2h5c1.1,0 1.99,-0.9 1.99,-2L23,5c0,-1.1 -0.9,-2 -2,-2z" +
+                "M21,17H3V5h18v12z",
+        )
+    }
+
+    val Movie: ImageVector by lazy {
+        icon(
+            "Movie",
+            "M18,4l2,4h-3l-2,-4h-2l2,4h-3l-2,-4H8l2,4H7L5,4H4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16" +
+                "c1.1,0 2,-0.9 2,-2V4h-4z",
+        )
+    }
+
+    val Library: ImageVector by lazy {
+        icon(
+            "Library",
+            "M4,6H2v14c0,1.1 0.9,2 2,2h14v-2H4V6zM20,2H8C6.9,2 6,2.9 6,4v12c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V4" +
+                "C22,2.9 21.1,2 20,2zM12,14.5v-9l6,4.5 -6,4.5z",
+        )
+    }
+
+    val Check: ImageVector by lazy {
+        icon("Check", "M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z")
+    }
+
+    val CaretDown: ImageVector by lazy {
+        icon("CaretDown", "M7,10l5,5 5,-5z")
+    }
+
     val SkipNext: ImageVector by lazy {
         icon("SkipNext", "M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z")
     }

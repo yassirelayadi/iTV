@@ -19,6 +19,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.shape.RoundedCornerShape
+import java.util.Locale
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.animateColorAsState
@@ -45,7 +49,26 @@ import fr.poptv.player.data.VodItem
 
 private const val SHELF_LIMIT = 30
 
+private const val SHELF_RECENT = "__recent"
+private const val SHELF_TOP = "__top"
+
 private data class VodShelf(val id: String, val title: String, val items: List<VodItem>)
+
+/** Contenu du bandeau du haut : l'élément sélectionné (titre, infos, résumé). */
+private data class HeroInfo(val title: String, val meta: String, val plot: String?, val poster: String?)
+
+/** « 7.80000 » -> « 7,8 » ; null si la note est absente ou nulle. */
+private fun ratingLabel(raw: String?): String? {
+    val number = cleanRating(raw)?.replace(',', '.')?.toDoubleOrNull() ?: return null
+    return if (number <= 0.0) null else String.format(Locale.FRANCE, "%.1f", number)
+}
+
+private fun VodItem.hero(categoryName: String?): HeroInfo = HeroInfo(
+    title = name,
+    meta = listOfNotNull(categoryName, year, ratingLabel(rating)?.let { "★ $it" }).joinToString("  ·  "),
+    plot = plot,
+    poster = poster,
+)
 
 /** Écran des films ou des séries : rangées d'affiches, ou grille si on choisit une catégorie. */
 @Composable
@@ -65,10 +88,23 @@ fun MediaScreen(
 
     val resume = remember(state.resume, kind) { state.resume.filter { it.kind == kind } }
 
+    val categoryNames = remember(catalog) { catalog.categories.associate { it.id to it.name } }
+
+    // Accueil : « Ajouts récents » et « Les mieux notés », puis une rangée par catégorie.
     val shelves = remember(catalog) {
         val byCategory = catalog.items.groupBy { it.categoryId }
-        catalog.categories.mapNotNull { category ->
-            byCategory[category.id]?.let { VodShelf(category.id, category.name, it) }
+        buildList {
+            val recent = catalog.items.filter { it.added > 0 }.sortedByDescending { it.added }.take(SHELF_LIMIT)
+            if (recent.size >= 5) add(VodShelf(SHELF_RECENT, "Ajouts récents", recent))
+            val top = catalog.items
+                .mapNotNull { item -> ratingLabel(item.rating)?.replace(',', '.')?.toDoubleOrNull()?.let { item to it } }
+                .sortedByDescending { it.second }
+                .take(SHELF_LIMIT)
+                .map { it.first }
+            if (top.size >= 5) add(VodShelf(SHELF_TOP, "Les mieux notés", top))
+            catalog.categories.forEach { category ->
+                byCategory[category.id]?.let { add(VodShelf(category.id, category.name, it)) }
+            }
         }
     }
 
@@ -90,13 +126,28 @@ fun MediaScreen(
         onQuery("")
     }
 
-    // Le fond prend la couleur de l'affiche sélectionnée.
-    var focusedPoster by remember { mutableStateOf<String?>(null) }
-    val onFocusPoster: (String?) -> Unit = { focusedPoster = it }
-    val tint = rememberPosterTint(focusedPoster)
+    // Le bandeau du haut et le fond suivent l'élément sélectionné.
+    var focusedInfo by remember { mutableStateOf<HeroInfo?>(null) }
+    val onFocusInfo: (HeroInfo) -> Unit = { focusedInfo = it }
+    val initialInfo = remember(resume, shelves) {
+        resume.firstOrNull()?.let { HeroInfo(it.title, "Reprendre à ${formatTime(it.positionMs)}", null, it.poster) }
+            ?: shelves.firstOrNull()?.items?.firstOrNull()?.let { it.hero(categoryNames[it.categoryId]) }
+    }
+    val hero = focusedInfo ?: initialInfo
+    val tint = rememberPosterTint(hero?.poster)
 
-    Column(modifier = Modifier.fillMaxSize().appBackground(tint)) {
-        AppTopBar(state, onSection, onQuery, onSettings)
+    // Le titre se masque quand on descend dans la liste.
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+
+    AppShell(
+        state = state,
+        onSection = onSection,
+        onQuery = onQuery,
+        onSettings = onSettings,
+        modifier = Modifier.appBackground(tint),
+        headerVisible = gridMode || !scrolled || catalog.items.isEmpty(),
+    ) {
         MediaTabs(catalog.categories, state.selectedCategory, onSelectCategory)
 
         when {
@@ -128,7 +179,8 @@ fun MediaScreen(
                             title = item.name,
                             poster = item.poster,
                             onClick = { onOpen(item) },
-                            onFocus = { onFocusPoster(item.poster) },
+                            rating = ratingLabel(item.rating),
+                            onFocus = { onFocusInfo(item.hero(categoryNames[item.categoryId])) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -136,17 +188,25 @@ fun MediaScreen(
             }
 
             else -> LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 12.dp),
+                contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                item(key = "hero") { MediaHero(hero) }
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
-                        ResumeRow(resume, onResume, onFocusPoster)
+                        ResumeRow(resume, onResume, onFocusInfo)
                     }
                 }
                 items(shelves, key = { it.id }) { shelf ->
-                    VodShelfRow(shelf, onOpen, onSeeAll = { onSelectCategory(shelf.id) }, onFocusPoster = onFocusPoster)
+                    VodShelfRow(
+                        shelf = shelf,
+                        categoryNames = categoryNames,
+                        onOpen = onOpen,
+                        onSeeAll = { onSelectCategory(shelf.id) },
+                        onFocusInfo = onFocusInfo,
+                    )
                 }
             }
         }
@@ -183,7 +243,7 @@ private fun ShelfTitle(text: String) {
 private fun ResumeRow(
     entries: List<ResumeEntry>,
     onResume: (ResumeEntry) -> Unit,
-    onFocusPoster: (String?) -> Unit,
+    onFocusInfo: (HeroInfo) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle("Reprendre")
@@ -197,7 +257,9 @@ private fun ResumeRow(
                     poster = entry.poster,
                     progress = if (entry.durationMs > 0) entry.positionMs.toFloat() / entry.durationMs else null,
                     onClick = { onResume(entry) },
-                    onFocus = { onFocusPoster(entry.poster) },
+                    onFocus = {
+                        onFocusInfo(HeroInfo(entry.title, "Reprendre à ${formatTime(entry.positionMs)}", null, entry.poster))
+                    },
                     modifier = Modifier.width(150.dp),
                 )
             }
@@ -208,9 +270,10 @@ private fun ResumeRow(
 @Composable
 private fun VodShelfRow(
     shelf: VodShelf,
+    categoryNames: Map<String, String>,
     onOpen: (VodItem) -> Unit,
     onSeeAll: () -> Unit,
-    onFocusPoster: (String?) -> Unit,
+    onFocusInfo: (HeroInfo) -> Unit,
 ) {
     val visible = remember(shelf.items) { shelf.items.take(SHELF_LIMIT) }
 
@@ -225,11 +288,12 @@ private fun VodShelfRow(
                     title = item.name,
                     poster = item.poster,
                     onClick = { onOpen(item) },
-                            onFocus = { onFocusPoster(item.poster) },
+                    rating = ratingLabel(item.rating),
+                    onFocus = { onFocusInfo(item.hero(categoryNames[item.categoryId])) },
                     modifier = Modifier.width(150.dp),
                 )
             }
-            if (shelf.items.size > SHELF_LIMIT) {
+            if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP) {
                 item(key = "see-all") {
                     FocusItem(
                         onClick = onSeeAll,
@@ -258,6 +322,7 @@ private fun PosterTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     progress: Float? = null,
+    rating: String? = null,
     onFocus: () -> Unit = {},
 ) {
     var tileFocused by remember { mutableStateOf(false) }
@@ -292,6 +357,19 @@ private fun PosterTile(
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
+            if (rating != null) {
+                Text(
+                    "★ $rating",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .background(Color(0x99000000), RoundedCornerShape(50))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
             if (progress != null) {
                 Box(
                     modifier = Modifier
@@ -317,5 +395,41 @@ private fun PosterTile(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
+    }
+}
+
+/** Bandeau du haut : titre, infos et résumé de l'élément sélectionné. */
+@Composable
+private fun MediaHero(info: HeroInfo?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(124.dp)
+            .padding(horizontal = ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+    ) {
+        if (info != null) {
+            Text(
+                info.title,
+                color = TextPrimary,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (info.meta.isNotEmpty()) {
+                Text(info.meta, color = TextSecondary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (info.plot != null) {
+                Text(
+                    info.plot,
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }

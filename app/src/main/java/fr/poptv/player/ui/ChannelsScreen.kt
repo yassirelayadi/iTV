@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,17 +21,23 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +50,7 @@ import fr.poptv.player.data.Section
 
 private val SidePadding = 48.dp
 private const val SHELF_LIMIT = 40
+private const val CAT_RECENT = "__recent"
 
 private data class Shelf(val id: String, val title: String, val channels: List<Channel>)
 
@@ -55,12 +64,19 @@ fun ChannelsScreen(
     onToggleFavorite: (String) -> Unit,
     onSettings: () -> Unit,
 ) {
-    // Accueil : une rangée horizontale par catégorie (et une pour les favoris).
-    val shelves = remember(state.channels, state.categories, state.favorites) {
+    // Chaînes regardées récemment, la plus récente en premier.
+    val recentChannels = remember(state.channels, state.recent) {
+        val byId = state.channels.associateBy { it.id }
+        state.recent.mapNotNull { byId[it] }
+    }
+
+    // Accueil : « Favoris », « Récents », puis une rangée horizontale par catégorie.
+    val shelves = remember(state.channels, state.categories, state.favorites, recentChannels) {
         val byCategory = state.channels.groupBy { it.categoryId }
         buildList {
             val favorites = state.channels.filter { it.id in state.favorites }
             if (favorites.isNotEmpty()) add(Shelf(CAT_FAV, "Favoris", favorites))
+            if (recentChannels.isNotEmpty()) add(Shelf(CAT_RECENT, "Récents", recentChannels))
             state.categories.forEach { category ->
                 byCategory[category.id]?.let { add(Shelf(category.id, category.name, it)) }
             }
@@ -86,16 +102,36 @@ fun ChannelsScreen(
         onQuery("")
     }
 
-    Column(modifier = Modifier.fillMaxSize().appBackground()) {
-        AppTopBar(state, onSection, onQuery, onSettings)
+    // Le titre se masque quand on descend dans la liste.
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+
+    AppShell(
+        state = state,
+        onSection = onSection,
+        onQuery = onQuery,
+        onSettings = onSettings,
+        modifier = Modifier.appBackground(),
+        headerVisible = gridMode || !scrolled,
+    ) {
         CategoryTabs(state, onSelectCategory)
 
         if (!gridMode) {
+            val last = recentChannels.firstOrNull()
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+                if (last != null) {
+                    item(key = "hero") {
+                        val among = remember(state.channels, last) {
+                            state.channels.filter { it.categoryId == last.categoryId }.ifEmpty { listOf(last) }
+                        }
+                        ResumeHero(channel = last, onPlay = { onPlay(last, among) })
+                    }
+                }
                 items(shelves, key = { it.id }) { shelf ->
                     ShelfRow(
                         shelf = shelf,
@@ -120,7 +156,7 @@ fun ChannelsScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 220.dp),
+                columns = GridCells.Adaptive(minSize = 180.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = SidePadding, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -162,6 +198,66 @@ private fun CategoryTabs(state: UiState, onSelect: (String) -> Unit) {
     }
 }
 
+/** Bandeau du haut : la dernière chaîne regardée, avec un bouton pour la reprendre. */
+@Composable
+private fun ResumeHero(channel: Channel, onPlay: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = SidePadding)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF2A3F6B), Color(0xFF1C1C1F))))
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0x33FFFFFF)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (channel.logo != null) {
+                AsyncImage(
+                    model = rememberImage(channel.logo, 256, 256),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(12.dp),
+                )
+            } else {
+                Text(
+                    channel.name.take(2).uppercase(),
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Light,
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "DERNIÈRE CHAÎNE REGARDÉE",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                letterSpacing = 0.8.sp,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    channel.name,
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Light,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                LiveBadge(fontSize = 11.sp)
+            }
+        }
+        PrimaryButton("Reprendre", onClick = onPlay, icon = Icons.Filled.PlayArrow)
+    }
+}
+
 @Composable
 private fun ShelfRow(
     shelf: Shelf,
@@ -190,14 +286,14 @@ private fun ShelfRow(
                     favorite = channel.id in favorites,
                     onClick = { onPlay(channel, shelf.channels) },
                     onLongClick = { onToggleFavorite(channel.id) },
-                    modifier = Modifier.width(220.dp),
+                    modifier = Modifier.width(180.dp),
                 )
             }
-            if (shelf.channels.size > SHELF_LIMIT) {
+            if (shelf.channels.size > SHELF_LIMIT && shelf.id != CAT_RECENT) {
                 item(key = "see-all") {
                     FocusItem(
                         onClick = onSeeAll,
-                        modifier = Modifier.width(220.dp).aspectRatio(16f / 9f),
+                        modifier = Modifier.width(180.dp).aspectRatio(4f / 3f),
                         focusScale = 1.08f,
                         focusRing = true,
                     ) {
@@ -214,6 +310,7 @@ private fun ShelfRow(
     }
 }
 
+/** Carte d'une chaîne : logo au centre, nom dessous, pastille « EN DIRECT ». */
 @Composable
 private fun ChannelTile(
     channel: Channel,
@@ -222,46 +319,53 @@ private fun ChannelTile(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        FocusItem(
-            onClick = onClick,
-            onLongClick = onLongClick,
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-            focusScale = 1.08f,
-            focusRing = true,
+    FocusItem(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = modifier.aspectRatio(4f / 3f),
+        focusScale = 1.08f,
+        focusRing = true,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            if (channel.logo != null) {
-                AsyncImage(
-                    model = rememberImage(channel.logo, 256, 256),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().padding(22.dp),
-                )
-            } else {
-                Text(
-                    channel.name.take(2).uppercase(),
-                    color = TextSecondary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Light,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+            Box(modifier = Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                if (channel.logo != null) {
+                    AsyncImage(
+                        model = rememberImage(channel.logo, 256, 256),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(
+                        channel.name.take(2).uppercase(),
+                        color = TextSecondary,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Light,
+                    )
+                }
             }
-            if (favorite) {
-                Text(
-                    "★",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
-                )
-            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                channel.name,
+                color = TextPrimary,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
         }
-        Text(
-            channel.name,
-            color = TextSecondary,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        LiveBadge(modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
+        if (favorite) {
+            Text(
+                "★",
+                color = Color.White,
+                fontSize = 16.sp,
+                modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
+            )
+        }
     }
 }
