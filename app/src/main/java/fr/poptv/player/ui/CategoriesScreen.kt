@@ -80,6 +80,14 @@ fun CategoriesScreen(
         if (q.isEmpty()) categories else categories.filter { it.name.contains(q, ignoreCase = true) }
     }
     val filtering = query.isNotBlank()
+    // Catégories masquées : leurs éléments ne sont pas téléchargés, le nombre est donc inconnu.
+    val notLoaded = remember(section, state.allMovies, state.allSeries) {
+        when (section) {
+            Section.MOVIES -> state.allMovies.excluded.toSet()
+            Section.SERIES -> state.allSeries.excluded.toSet()
+            Section.LIVE -> emptySet()
+        }
+    }
     val visibleCount = categories.count { it.id !in hidden }
 
     Column(
@@ -148,7 +156,11 @@ fun CategoriesScreen(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
                             )
-                            Text("${counts[category.id] ?: 0}", color = TextSecondary, fontSize = 14.sp)
+                            Text(
+                                if (category.id in notLoaded) "—" else "${counts[category.id] ?: 0}",
+                                color = TextSecondary,
+                                fontSize = 14.sp,
+                            )
                             Text(
                                 if (isHidden) "Masquée" else "Affichée",
                                 color = if (isHidden) TextSecondary else TextPrimary,

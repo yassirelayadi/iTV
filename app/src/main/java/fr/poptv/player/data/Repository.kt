@@ -2,6 +2,11 @@ package fr.poptv.player.data
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -9,6 +14,9 @@ import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import okhttp3.Request
 import java.io.File
+
+/** Au-delà de ce nombre de catégories affichées, on télécharge tout d'un bloc. */
+private const val PER_CATEGORY_LIMIT = 30
 
 @OptIn(ExperimentalSerializationApi::class)
 class Repository(private val context: Context) {
@@ -77,9 +85,37 @@ class Repository(private val context: Context) {
     private fun mediaFile(section: Section): File =
         File(context.cacheDir, if (section == Section.MOVIES) "movies.json" else "series.json")
 
-    suspend fun fetchMedia(creds: Credentials, section: Section): VodCatalog = withContext(Dispatchers.IO) {
-        if (section == Section.MOVIES) XtreamClient.fetchMovies(creds) else XtreamClient.fetchSeries(creds)
-    }
+    /**
+     * Télécharge un catalogue en ignorant les catégories masquées. Peu de catégories affichées :
+     * une requête par catégorie (4 en parallèle) ; sinon un seul téléchargement dont on écarte
+     * les catégories masquées au fil de la lecture.
+     */
+    suspend fun fetchMedia(creds: Credentials, section: Section, hidden: Set<String>): VodCatalog =
+        withContext(Dispatchers.IO) {
+            val movies = section == Section.MOVIES
+            val categories = if (movies) XtreamClient.movieCategories(creds) else XtreamClient.seriesCategories(creds)
+            val visible = categories.filter { it.id !in hidden }
+
+            fun load(categoryId: String?, skip: Set<String>) =
+                if (movies) XtreamClient.fetchMovies(creds, categoryId, skip)
+                else XtreamClient.fetchSeries(creds, categoryId, skip)
+
+            val items = if (hidden.isEmpty() || visible.size > PER_CATEGORY_LIMIT) {
+                load(null, hidden)
+            } else {
+                val gate = Semaphore(4)
+                coroutineScope {
+                    visible.map { category ->
+                        async { gate.withPermit { load(category.id, emptySet()) } }
+                    }.awaitAll().flatten()
+                }
+            }
+            VodCatalog(
+                categories = categories,
+                items = items.distinctBy { it.id },
+                excluded = categories.map { it.id }.filter { it in hidden },
+            )
+        }
 
     suspend fun loadCachedMedia(section: Section): VodCatalog? = withContext(Dispatchers.IO) {
         readCache(mediaFile(section)) { json.decodeFromStream(VodCatalog.serializer(), it) }

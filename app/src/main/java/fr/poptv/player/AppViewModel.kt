@@ -286,6 +286,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             s.withHidden(section, updated).refiltered()
         }
         viewModelScope.launch { store.setHidden(section, updated) }
+        // Les catégories masquées ne sont pas téléchargées : en réafficher une demande de la charger.
+        if (!hidden && section != Section.LIVE) {
+            val catalog = _state.value.let { if (section == Section.MOVIES) it.allMovies else it.allSeries }
+            if (catalog.excluded.any { it in ids }) loadMedia(section, force = true)
+        }
     }
 
     // ---- Catalogues films / séries ----
@@ -309,15 +314,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             try {
                 // Cache récent : affichage immédiat, sans retélécharger tout le catalogue.
-                // « Actualiser » dans les réglages force le téléchargement.
+                // « Actualiser » dans les réglages force le téléchargement. Si une catégorie
+                // a été réaffichée depuis, le cache ne la contient pas : on recharge.
                 val age = repo.mediaCacheAgeMs(section)
-                if (!force && fromCache && age != null && age < MEDIA_CACHE_TTL_MS) return@launch
+                val cachedNow = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
+                val missing = cachedNow.excluded.any { it !in _state.value.hiddenOf(section) }
+                if (!force && fromCache && !missing && age != null && age < MEDIA_CACHE_TTL_MS) return@launch
 
-                val catalog = repo.fetchMedia(creds, section)
-                repo.saveMediaCache(section, catalog)
-                // Rien n'a changé : on évite de reconstruire tout l'écran.
-                val current = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
-                if (catalog != current) setCatalog(section, catalog)
+                // Boucle : si des catégories sont réaffichées pendant le téléchargement, on recharge.
+                while (true) {
+                    val hidden = _state.value.hiddenOf(section)
+                    val catalog = repo.fetchMedia(creds, section, hidden)
+                    repo.saveMediaCache(section, catalog)
+                    // Rien n'a changé : on évite de reconstruire tout l'écran.
+                    val current = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
+                    if (catalog != current) setCatalog(section, catalog)
+                    val unhiddenMeanwhile = hidden.any { it !in _state.value.hiddenOf(section) }
+                    if (!unhiddenMeanwhile) break
+                }
                 _state.update { it.copy(mediaError = null) }
             } catch (e: CancellationException) {
                 throw e

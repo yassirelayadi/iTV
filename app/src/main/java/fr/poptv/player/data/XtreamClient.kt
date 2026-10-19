@@ -134,21 +134,29 @@ object XtreamClient {
 
     // ---- Films ----
 
-    fun fetchMovies(creds: Credentials): VodCatalog {
-        val categories = categories(creds, "get_vod_categories")
-        val items = streamArray(creds, "get_vod_streams") { o ->
+    fun movieCategories(creds: Credentials): List<Category> = categories(creds, "get_vod_categories")
+
+    private fun categoryParams(categoryId: String?): Map<String, String> =
+        if (categoryId == null) emptyMap() else mapOf("category_id" to categoryId)
+
+    /**
+     * Films d'une seule catégorie (categoryId) ou de tout le catalogue (null). Les catégories de
+     * `skip` sont ignorées dès la lecture : elles ne sont jamais gardées en mémoire.
+     */
+    fun fetchMovies(creds: Credentials, categoryId: String? = null, skip: Set<String> = emptySet()): List<VodItem> =
+        streamArray(creds, "get_vod_streams", categoryParams(categoryId)) { o ->
+            val category = o.str("category_id") ?: categoryId ?: ""
+            if (category in skip) return@streamArray null
             val id = o.str("stream_id") ?: return@streamArray null
             VodItem(
                 id = id,
                 name = o.text("name") ?: id,
                 poster = o.text("stream_icon"),
-                categoryId = o.str("category_id") ?: "",
+                categoryId = category,
                 ext = o.text("container_extension") ?: "mp4",
                 rating = o.text("rating"),
             )
-        }.distinctBy { it.id }
-        return VodCatalog(categories, items)
-    }
+        }
 
     fun vodInfo(creds: Credentials, id: String): DetailInfo {
         val root = parseObject(api(creds, "get_vod_info", mapOf("vod_id" to id)))
@@ -179,22 +187,23 @@ object XtreamClient {
 
     // ---- Séries ----
 
-    fun fetchSeries(creds: Credentials): VodCatalog {
-        val categories = categories(creds, "get_series_categories")
-        val items = streamArray(creds, "get_series") { o ->
+    fun seriesCategories(creds: Credentials): List<Category> = categories(creds, "get_series_categories")
+
+    fun fetchSeries(creds: Credentials, categoryId: String? = null, skip: Set<String> = emptySet()): List<VodItem> =
+        streamArray(creds, "get_series", categoryParams(categoryId)) { o ->
+            val category = o.str("category_id") ?: categoryId ?: ""
+            if (category in skip) return@streamArray null
             val id = o.str("series_id") ?: return@streamArray null
             VodItem(
                 id = id,
                 name = o.text("name") ?: id,
                 poster = o.text("cover"),
-                categoryId = o.str("category_id") ?: "",
+                categoryId = category,
                 year = (o.text("year") ?: o.text("releaseDate") ?: o.text("release_date"))?.take(4),
                 rating = o.text("rating"),
                 plot = o.text("plot"),
             )
-        }.distinctBy { it.id }
-        return VodCatalog(categories, items)
-    }
+        }
 
     fun seriesInfo(creds: Credentials, id: String): Pair<DetailInfo, List<Season>> {
         val root = parseObject(api(creds, "get_series_info", mapOf("series_id" to id)))

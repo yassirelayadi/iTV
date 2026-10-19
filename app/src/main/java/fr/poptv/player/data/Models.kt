@@ -55,6 +55,8 @@ data class VodItem(
 data class VodCatalog(
     val categories: List<Category> = emptyList(),
     val items: List<VodItem> = emptyList(),
+    /** Catégories masquées au moment du téléchargement : leurs éléments n'ont pas été chargés. */
+    val excluded: List<String> = emptyList(),
 )
 
 /** Position de lecture mémorisée, pour la rangée « Reprendre ». kind = "movie" ou "episode". */
