@@ -86,7 +86,7 @@ fun ChannelsScreen(
         onQuery("")
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Bg)) {
+    Column(modifier = Modifier.fillMaxSize().appBackground()) {
         AppTopBar(state, onSection, onQuery, onSettings)
         CategoryTabs(state, onSelectCategory)
 

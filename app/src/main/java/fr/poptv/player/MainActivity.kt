@@ -18,7 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fr.poptv.player.data.Section
-import fr.poptv.player.ui.Bg
+import fr.poptv.player.ui.appBackground
 import fr.poptv.player.ui.CategoriesScreen
 import fr.poptv.player.ui.CrashScreen
 import fr.poptv.player.ui.ChannelsScreen
@@ -88,7 +88,7 @@ private fun App(viewModel: AppViewModel) {
         )
 
         state.loading && state.allChannels.isEmpty() -> Box(
-            modifier = Modifier.fillMaxSize().background(Bg),
+            modifier = Modifier.fillMaxSize().appBackground(),
             contentAlignment = Alignment.Center,
         ) {
             CircularProgressIndicator()

@@ -76,14 +76,15 @@ fun DetailScreen(
     ).joinToString("  ·  ")
     val plot = info.plot ?: item.plot
 
-    Box(modifier = Modifier.fillMaxSize().background(Bg)) {
-        // Fond : l'affiche agrandie, très assombrie, qui s'efface vers le noir (effet « flou » Apple TV).
+    // Fond : dégradé graphite teinté par la couleur de l'affiche, avec l'affiche très estompée par-dessus.
+    val tint = rememberPosterTint(item.poster)
+    Box(modifier = Modifier.fillMaxSize().appBackground(tint)) {
         if (item.poster != null) {
             AsyncImage(
                 model = item.poster,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().alpha(0.22f),
+                modifier = Modifier.fillMaxSize().alpha(0.10f),
             )
         }
         Box(
@@ -91,14 +92,9 @@ fun DetailScreen(
                 .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Bg, Color(0xE6000000), Color(0x66000000)),
+                        listOf(Color(0x99000000), Color(0x40000000), Color(0x00000000)),
                     )
                 ),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Bg), startY = 500f)),
         )
 
         Row(

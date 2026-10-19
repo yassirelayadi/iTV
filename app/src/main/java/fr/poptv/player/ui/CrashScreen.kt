@@ -24,7 +24,7 @@ fun CrashScreen(report: String, onClose: () -> Unit) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
-    Box(modifier = Modifier.fillMaxSize().background(Bg).padding(horizontal = 56.dp, vertical = 32.dp)) {
+    Box(modifier = Modifier.fillMaxSize().appBackground().padding(horizontal = 56.dp, vertical = 32.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("iTV s'est arrêtée la dernière fois", color = TextPrimary, fontSize = 26.sp)
             Text(

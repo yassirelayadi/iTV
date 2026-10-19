@@ -90,7 +90,12 @@ fun MediaScreen(
         onQuery("")
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Bg)) {
+    // Le fond prend la couleur de l'affiche sélectionnée.
+    var focusedPoster by remember { mutableStateOf<String?>(null) }
+    val onFocusPoster: (String?) -> Unit = { focusedPoster = it }
+    val tint = rememberPosterTint(focusedPoster)
+
+    Column(modifier = Modifier.fillMaxSize().appBackground(tint)) {
         AppTopBar(state, onSection, onQuery, onSettings)
         MediaTabs(catalog.categories, state.selectedCategory, onSelectCategory)
 
@@ -123,6 +128,7 @@ fun MediaScreen(
                             title = item.name,
                             poster = item.poster,
                             onClick = { onOpen(item) },
+                            onFocus = { onFocusPoster(item.poster) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -136,11 +142,11 @@ fun MediaScreen(
             ) {
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
-                        ResumeRow(resume, onResume)
+                        ResumeRow(resume, onResume, onFocusPoster)
                     }
                 }
                 items(shelves, key = { it.id }) { shelf ->
-                    VodShelfRow(shelf, onOpen, onSeeAll = { onSelectCategory(shelf.id) })
+                    VodShelfRow(shelf, onOpen, onSeeAll = { onSelectCategory(shelf.id) }, onFocusPoster = onFocusPoster)
                 }
             }
         }
@@ -174,7 +180,11 @@ private fun ShelfTitle(text: String) {
 }
 
 @Composable
-private fun ResumeRow(entries: List<ResumeEntry>, onResume: (ResumeEntry) -> Unit) {
+private fun ResumeRow(
+    entries: List<ResumeEntry>,
+    onResume: (ResumeEntry) -> Unit,
+    onFocusPoster: (String?) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle("Reprendre")
         LazyRow(
@@ -187,6 +197,7 @@ private fun ResumeRow(entries: List<ResumeEntry>, onResume: (ResumeEntry) -> Uni
                     poster = entry.poster,
                     progress = if (entry.durationMs > 0) entry.positionMs.toFloat() / entry.durationMs else null,
                     onClick = { onResume(entry) },
+                    onFocus = { onFocusPoster(entry.poster) },
                     modifier = Modifier.width(150.dp),
                 )
             }
@@ -195,7 +206,12 @@ private fun ResumeRow(entries: List<ResumeEntry>, onResume: (ResumeEntry) -> Uni
 }
 
 @Composable
-private fun VodShelfRow(shelf: VodShelf, onOpen: (VodItem) -> Unit, onSeeAll: () -> Unit) {
+private fun VodShelfRow(
+    shelf: VodShelf,
+    onOpen: (VodItem) -> Unit,
+    onSeeAll: () -> Unit,
+    onFocusPoster: (String?) -> Unit,
+) {
     val visible = remember(shelf.items) { shelf.items.take(SHELF_LIMIT) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -209,6 +225,7 @@ private fun VodShelfRow(shelf: VodShelf, onOpen: (VodItem) -> Unit, onSeeAll: ()
                     title = item.name,
                     poster = item.poster,
                     onClick = { onOpen(item) },
+                            onFocus = { onFocusPoster(item.poster) },
                     modifier = Modifier.width(150.dp),
                 )
             }
@@ -241,12 +258,16 @@ private fun PosterTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     progress: Float? = null,
+    onFocus: () -> Unit = {},
 ) {
     var tileFocused by remember { mutableStateOf(false) }
     val titleColor by animateColorAsState(if (tileFocused) TextPrimary else TextSecondary, label = "titleColor")
 
     Column(
-        modifier = modifier.onFocusChanged { tileFocused = it.hasFocus },
+        modifier = modifier.onFocusChanged {
+            tileFocused = it.hasFocus
+            if (it.hasFocus) onFocus()
+        },
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         FocusItem(

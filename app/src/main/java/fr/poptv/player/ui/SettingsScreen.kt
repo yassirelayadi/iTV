@@ -45,7 +45,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Bg),
+        modifier = Modifier.fillMaxSize().appBackground(),
         contentAlignment = Alignment.Center,
     ) {
         Column(

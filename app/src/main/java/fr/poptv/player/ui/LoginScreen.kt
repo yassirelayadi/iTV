@@ -52,7 +52,7 @@ fun LoginScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Bg),
+        modifier = Modifier.fillMaxSize().appBackground(),
         contentAlignment = Alignment.Center,
     ) {
         Column(
