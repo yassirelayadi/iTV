@@ -21,6 +21,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -237,7 +242,13 @@ private fun PosterTile(
     modifier: Modifier = Modifier,
     progress: Float? = null,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    var tileFocused by remember { mutableStateOf(false) }
+    val titleColor by animateColorAsState(if (tileFocused) TextPrimary else TextSecondary, label = "titleColor")
+
+    Column(
+        modifier = modifier.onFocusChanged { tileFocused = it.hasFocus },
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         FocusItem(
             onClick = onClick,
             modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
@@ -279,7 +290,7 @@ private fun PosterTile(
         }
         Text(
             title,
-            color = TextSecondary,
+            color = titleColor,
             fontSize = 13.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,

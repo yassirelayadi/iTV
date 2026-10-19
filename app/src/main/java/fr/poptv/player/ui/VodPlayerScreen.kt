@@ -50,6 +50,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -69,11 +70,13 @@ fun VodPlayerScreen(
     playback: VodPlayback,
     onProgress: (VodPlayback, Long, Long) -> Unit,
     onEnded: () -> Unit,
+    onNext: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val latestOnProgress by rememberUpdatedState(onProgress)
     val latestOnEnded by rememberUpdatedState(onEnded)
+    val latestOnNext by rememberUpdatedState(onNext)
 
     val player = remember {
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
@@ -92,12 +95,23 @@ fun VodPlayerScreen(
     var overlayVisible by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
 
+    // Options : rangée de boutons (touche Bas) et panneau de choix.
+    var tracks by remember { mutableStateOf(Tracks.EMPTY) }
+    var optionsActive by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf<OptionsMenu?>(null) }
+    var lastButton by remember { mutableIntStateOf(0) }
+    val buttonFocus = remember { List(6) { FocusRequester() } }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) error = null
                 if (playbackState == Player.STATE_ENDED) latestOnEnded()
+            }
+
+            override fun onTracksChanged(t: Tracks) {
+                tracks = t
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -147,12 +161,34 @@ fun VodPlayerScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    // Le focus suit l'ouverture et la fermeture de la rangée d'options et du panneau.
+    LaunchedEffect(optionsActive) {
+        if (optionsActive) {
+            delay(60)
+            runCatching { buttonFocus[0].requestFocus() }
+        } else {
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
+    LaunchedEffect(menu) {
+        if (menu == null && optionsActive) {
+            delay(60)
+            runCatching { buttonFocus[lastButton.coerceIn(0, buttonFocus.lastIndex)].requestFocus() }
+        }
+    }
+
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         latestOnProgress(playback, player.currentPosition, player.duration.coerceAtLeast(0L))
         player.pause()
     }
 
-    BackHandler(onBack = onBack)
+    BackHandler {
+        when {
+            menu != null -> menu = null
+            optionsActive -> optionsActive = false
+            else -> onBack()
+        }
+    }
 
     fun seekBy(deltaMs: Long) {
         val total = player.duration
@@ -170,6 +206,16 @@ fun VodPlayerScreen(
             .focusRequester(focusRequester)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // Panneau ouvert : ses boutons gèrent les touches.
+                if (menu != null) return@onKeyEvent false
+                // Rangée d'options affichée : Haut la referme, le reste déplace le focus.
+                if (optionsActive) {
+                    if (event.key == Key.DirectionUp) {
+                        optionsActive = false
+                        return@onKeyEvent true
+                    }
+                    return@onKeyEvent false
+                }
                 when (event.key) {
                     Key.DirectionLeft -> {
                         seekBy(-10_000)
@@ -211,8 +257,14 @@ fun VodPlayerScreen(
                         overlayTick++
                         true
                     }
-                    Key.DirectionUp, Key.DirectionDown -> {
+                    Key.DirectionDown -> {
                         overlayTick++
+                        optionsActive = true
+                        true
+                    }
+                    Key.DirectionUp, Key.Menu -> {
+                        overlayTick++
+                        if (event.key == Key.Menu) optionsActive = true
                         true
                     }
                     else -> false
@@ -263,7 +315,7 @@ fun VodPlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = overlayVisible || paused,
+            visible = overlayVisible || paused || optionsActive || menu != null,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart),
@@ -285,6 +337,15 @@ fun VodPlayerScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (playback.subtitle != null) {
+                    Text(
+                        playback.subtitle,
+                        color = TextSecondary,
+                        fontSize = 17.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -303,12 +364,54 @@ fun VodPlayerScreen(
                     Text(formatTime(position), color = TextSecondary, fontSize = 14.sp)
                     Text(if (duration > 0) formatTime(duration) else "", color = TextSecondary, fontSize = 14.sp)
                 }
-                Text(
-                    "Gauche / Droite : 10 s  ·  OK : pause",
-                    color = TextSecondary,
-                    fontSize = 14.sp,
-                )
+                if (optionsActive) {
+                    val audio = audioOptions(player, tracks)
+                    val subs = subtitleOptions(player, tracks)
+                    val quality = qualityOptions(player, tracks)
+                    val buttons = buildList<Pair<String, () -> Unit>> {
+                        if (playback.hasNext) add("Épisode suivant" to { latestOnNext() })
+                        if (audio.size > 1) add("Audio" to { menu = OptionsMenu.AUDIO })
+                        if (subs.isNotEmpty()) add("Sous-titres" to { menu = OptionsMenu.SUBTITLES })
+                        if (quality.isNotEmpty()) add("Qualité" to { menu = OptionsMenu.QUALITY })
+                        add("Vitesse" to { menu = OptionsMenu.SPEED })
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        buttons.forEachIndexed { index, (label, action) ->
+                            ControlButton(
+                                text = label,
+                                onClick = {
+                                    lastButton = index
+                                    action()
+                                },
+                                modifier = Modifier.focusRequester(buttonFocus[index]),
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
+                        color = TextSecondary,
+                        fontSize = 14.sp,
+                    )
+                }
             }
+        }
+
+        menu?.let { current ->
+            val options = when (current) {
+                OptionsMenu.AUDIO -> audioOptions(player, tracks)
+                OptionsMenu.SUBTITLES -> subtitleOptions(player, tracks)
+                OptionsMenu.QUALITY -> qualityOptions(player, tracks)
+                OptionsMenu.SPEED -> speedOptions(player)
+            }
+            OptionsPanel(
+                title = current.title,
+                options = options,
+                onClose = { menu = null },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 56.dp, bottom = 150.dp),
+            )
         }
     }
 }

@@ -54,6 +54,7 @@ private fun App(viewModel: AppViewModel) {
                 playback = vodPlaying,
                 onProgress = viewModel::saveProgress,
                 onEnded = viewModel::onVodEnded,
+                onNext = viewModel::onVodEnded,
                 onBack = viewModel::stopVod,
             )
         }

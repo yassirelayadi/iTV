@@ -20,3 +20,19 @@ internal fun cleanRating(raw: String?): String? {
     val number = value.replace(',', '.').toDoubleOrNull()
     return if (number != null && number <= 0.0) null else value
 }
+
+/** "00:45:12" -> "45 min", "01:05:00" -> "1 h 05". Les autres formats sont laissés tels quels. */
+internal fun prettyDuration(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isEmpty() || value == "0" || value == "00:00:00") return null
+    val parts = value.split(":").map { it.toIntOrNull() ?: return value }
+    if (parts.size != 3) return value
+    val totalMinutes = parts[0] * 60 + parts[1] + if (parts[2] >= 30) 1 else 0
+    val h = totalMinutes / 60
+    val m = totalMinutes % 60
+    return when {
+        totalMinutes <= 0 -> null
+        h == 0 -> "$m min"
+        else -> "%d h %02d".format(h, m)
+    }
+}

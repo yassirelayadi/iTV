@@ -19,7 +19,8 @@ L'application ne contient aucune chaîne : elle lit uniquement les flux de **ton
 - Sélecteur **Chaînes · Films · Séries** en haut de l'écran
 - Rangées d'affiches par catégorie, grille par catégorie, recherche
 - Page de détail : affiche, résumé, année, durée, note, genre
-- Séries : choix de la saison, épisodes avec vignettes, passage automatique à l'épisode suivant
+- Séries : choix de la saison, vignettes d'épisodes avec **titre, durée et résumé** de l'épisode sélectionné, passage automatique à l'épisode suivant
+- Lecteur : touche **Bas** pour afficher les options — épisode suivant, piste audio, sous-titres, qualité vidéo (flux à plusieurs débits) et vitesse de lecture
 - Reprise de lecture : barre de progression sur les affiches et rangée « Reprendre »
 - Les catalogues sont mis en cache ; le premier chargement peut être long si le serveur est très fourni
 
@@ -68,6 +69,7 @@ variables > Actions) les secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_AL
 | Revenir à la liste | Retour |
 | Film ou épisode : pause / lecture | OK |
 | Film ou épisode : avancer / reculer de 10 s | Droite / Gauche |
+| Film ou épisode : options (audio, sous-titres, qualité, suivant) | Bas |
 
 ## Obtenir l'APK sans Android Studio (GitHub)
 

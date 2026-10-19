@@ -39,6 +39,7 @@ data class VodPlayback(
     val poster: String?,
     val startMs: Long,
     val hasNext: Boolean,
+    val subtitle: String? = null, // titre de l'épisode, affiché sous le titre dans le lecteur
 )
 
 /**
@@ -416,6 +417,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 poster = detail.item.poster,
                 startMs = 0L,
                 hasNext = false,
+                subtitle = ep.title,
             )
         }
         queueIndex = siblings.indexOfFirst { it.id == episode.id }.coerceAtLeast(0)
