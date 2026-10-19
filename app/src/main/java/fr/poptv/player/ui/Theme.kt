@@ -9,7 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -41,6 +46,25 @@ val AppFont = FontFamily(
     Font(R.font.inter_semibold, FontWeight.SemiBold),
     Font(R.font.inter_semibold, FontWeight.Bold),
 )
+
+/** Police du logo : Sora Bold. */
+val LogoFont = FontFamily(Font(R.font.sora_bold, FontWeight.Bold))
+
+/** Logo iTV : le « i » en bleu, le reste en blanc. */
+@Composable
+fun LogoText(size: TextUnit, modifier: Modifier = Modifier) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = Color(0xFF0A84FF))) { append("i") }
+            append("TV")
+        },
+        fontFamily = LogoFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = size,
+        color = Color.White,
+        modifier = modifier,
+    )
+}
 
 private fun TextStyle.inter() = copy(fontFamily = AppFont)
 

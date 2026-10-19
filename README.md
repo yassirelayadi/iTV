@@ -103,7 +103,7 @@ Alternative : copie `iTV.apk` sur une clé USB et ouvre-la avec un gestionnaire 
 
 ## Police
 
-L'app utilise **Inter** (licence SIL OFL, voir `FONT-LICENSE-Inter.txt`), la police libre la plus proche de la police d'Apple.
+L'app utilise **Inter** (licence SIL OFL, voir `FONT-LICENSES.txt`), la police libre la plus proche de la police d'Apple ; le logo utilise **Sora Bold** (également SIL OFL).
 
 ## Légalité
 

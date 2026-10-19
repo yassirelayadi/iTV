@@ -46,12 +46,7 @@ fun AppTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "iTV",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextPrimary,
-        )
+        LogoText(size = 28.sp)
         if (state.vodSupported) {
             Spacer(Modifier.width(12.dp))
             Pill("Chaînes", onClick = { onSection(Section.LIVE) }, selected = state.section == Section.LIVE)

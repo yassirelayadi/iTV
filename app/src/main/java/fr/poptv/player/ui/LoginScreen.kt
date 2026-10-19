@@ -63,7 +63,7 @@ fun LoginScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("iTV", fontSize = 48.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+            LogoText(size = 52.sp)
             Text(
                 "Connecte ton abonnement IPTV pour commencer.",
                 color = TextSecondary,
