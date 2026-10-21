@@ -77,6 +77,7 @@ fun PlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    ForceLandscape()
 
     val player = remember {
         // Tampons réduits pour un zapping rapide.
@@ -150,6 +151,19 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(focusRequester)
+            .liveTouch(
+                onTap = {
+                    if (error != null) {
+                        error = null
+                        buffering = true
+                        player.prepare()
+                        player.playWhenReady = true
+                    } else {
+                        overlayTick++
+                    }
+                },
+                onZap = onZap,
+            )
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
@@ -216,7 +230,7 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                    .padding(horizontal = 56.dp, vertical = 40.dp),
+                    .padding(horizontal = if (LocalCompact.current) 24.dp else 56.dp, vertical = if (LocalCompact.current) 20.dp else 40.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -268,7 +282,11 @@ fun PlayerScreen(
                                 maxLines = 1,
                             )
                         }
-                        Text("Haut / Bas pour changer de chaîne", color = TextSecondary, fontSize = 13.sp)
+                        Text(
+                            if (LocalCompact.current) "Balayer vers le haut / bas pour changer de chaîne" else "Haut / Bas pour changer de chaîne",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                        )
                     }
                 }
             }

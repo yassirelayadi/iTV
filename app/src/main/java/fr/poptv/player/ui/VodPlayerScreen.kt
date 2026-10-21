@@ -1,5 +1,8 @@
 package fr.poptv.player.ui
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import android.graphics.Color as AndroidColor
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -92,6 +95,7 @@ fun VodPlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    ForceLandscape()
     val latestOnProgress by rememberUpdatedState(onProgress)
     val latestOnEnded by rememberUpdatedState(onEnded)
     val latestOnNext by rememberUpdatedState(onNext)
@@ -246,6 +250,31 @@ fun VodPlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(focusRequester)
+            .vodTouch(
+                onTap = {
+                    if (panelOpen) {
+                        panelOpen = false
+                    } else if (error != null) {
+                        error = null
+                        buffering = true
+                        player.prepare()
+                        player.playWhenReady = true
+                    } else if (overlayVisible && !paused) {
+                        player.pause()
+                        overlayTick++
+                    } else if (paused) {
+                        player.play()
+                        overlayTick++
+                    } else {
+                        overlayTick++
+                    }
+                },
+                onSeek = { dir -> seekBy(dir * 10_000L) },
+                onLongPress = {
+                    overlayTick++
+                    panelOpen = true
+                },
+            )
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Panneau ouvert ou carte « Épisode suivant » affichée : leurs boutons gèrent les touches.
@@ -381,7 +410,7 @@ fun VodPlayerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                    .padding(horizontal = 56.dp, vertical = 36.dp),
+                    .padding(horizontal = if (LocalCompact.current) 24.dp else 56.dp, vertical = if (LocalCompact.current) 16.dp else 36.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
@@ -401,7 +430,31 @@ fun VodPlayerScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(14.dp)) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (LocalCompact.current) 30.dp else 14.dp)
+                        .pointerInput(duration) {
+                            if (duration <= 0L) return@pointerInput
+                            detectTapGestures { offset ->
+                                val target = (touchFraction(offset.x, size) * duration).toLong()
+                                player.seekTo(target)
+                                position = target
+                                overlayTick++
+                                seekTick++
+                            }
+                        }
+                        .pointerInput(duration) {
+                            if (duration <= 0L) return@pointerInput
+                            detectHorizontalDragGestures { change, _ ->
+                                val target = (touchFraction(change.position.x, size) * duration).toLong()
+                                player.seekTo(target)
+                                position = target
+                                overlayTick++
+                                seekTick++
+                            }
+                        },
+                ) {
                     val trackWidth = maxWidth
                     Box(
                         modifier = Modifier
@@ -431,11 +484,22 @@ fun VodPlayerScreen(
                         fontSize = 14.sp,
                     )
                 }
-                Text(
-                    "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
-                    color = TextSecondary,
-                    fontSize = 14.sp,
-                )
+                if (LocalCompact.current) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Pill("Options", onClick = { panelOpen = true; overlayTick++ })
+                        Text(
+                            "Toucher : pause  ·  Double toucher : ±10 s",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                        )
+                    }
+                } else {
+                    Text(
+                        "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
+                        color = TextSecondary,
+                        fontSize = 14.sp,
+                    )
+                }
             }
         }
 
@@ -444,7 +508,7 @@ fun VodPlayerScreen(
             visible = inCredits && !panelOpen,
             enter = fadeIn(tween(350, easing = AppleEase)) + slideInVertically(tween(450, easing = AppleEase)) { it / 3 },
             exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 3 },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 56.dp, bottom = 150.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = if (LocalCompact.current) 16.dp else 56.dp, bottom = if (LocalCompact.current) 110.dp else 150.dp),
         ) {
             NextEpisodeCard(
                 label = playback.next,

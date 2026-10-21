@@ -10,6 +10,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -65,6 +70,7 @@ import fr.poptv.player.data.Episode
 import fr.poptv.player.data.ResumeEntry
 
 /** Page d'un film ou d'une série : fond flouté, affiche, résumé ; pour une série, épisodes par saison. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     detail: Detail,
@@ -144,15 +150,11 @@ fun DetailScreen(
                 ),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 56.dp, vertical = 36.dp),
-            horizontalArrangement = Arrangement.spacedBy(40.dp),
-        ) {
+        val compact = LocalCompact.current
+        val poster: @Composable () -> Unit = {
             Box(
                 modifier = Modifier
-                    .width(190.dp)
+                    .width(if (compact) 130.dp else 190.dp)
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface1),
@@ -166,14 +168,16 @@ fun DetailScreen(
                     )
                 }
             }
+        }
 
+        val info: @Composable (Modifier) -> Unit = { m ->
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = m,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     item.name,
-                    fontSize = 32.sp,
+                    fontSize = if (compact) 26.sp else 32.sp,
                     fontWeight = FontWeight.Light,
                     color = TextPrimary,
                     maxLines = 2,
@@ -196,9 +200,9 @@ fun DetailScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     val resume = resumeFor("m:${item.id}")
-                    Row(
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         PrimaryButton(
                             text = if (resume != null) "Reprendre à ${formatTime(resume.positionMs)}" else "Lecture",
@@ -220,9 +224,9 @@ fun DetailScreen(
                             val shown = season.episodes.firstOrNull { it.id == focusedEpisodeId }
                                 ?: season.episodes.first()
 
-                            Row(
+                            FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 if (target != null) {
                                     PrimaryButton(
@@ -273,7 +277,7 @@ fun DetailScreen(
                                 EpisodePanel(shown, fallbackPlot = plot)
                             }
 
-                            Spacer(Modifier.weight(1f))
+                            if (!compact) Spacer(Modifier.weight(1f))
 
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -286,13 +290,37 @@ fun DetailScreen(
                                         watched = "e:${episode.id}" in watched,
                                         onClick = { onPlayEpisode(episode, season.episodes) },
                                         onFocused = { focusedEpisodeId = episode.id },
-                                        modifier = Modifier.width(220.dp),
+                                        modifier = Modifier.width(if (compact) 170.dp else 220.dp),
                                     )
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+
+        if (compact) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                poster()
+                info(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 56.dp, vertical = 36.dp),
+                horizontalArrangement = Arrangement.spacedBy(40.dp),
+            ) {
+                poster()
+                info(Modifier.weight(1f))
             }
         }
     }

@@ -97,8 +97,13 @@ private fun appTypography(): Typography {
     )
 }
 
+/** Vrai sur un téléphone (écran étroit) : menu en bas, marges réduites, lecture tactile. */
+val LocalCompact = androidx.compose.runtime.compositionLocalOf { false }
+
 @Composable
 fun PopTheme(content: @Composable () -> Unit) {
+    val compact = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp < 500
+    androidx.compose.runtime.CompositionLocalProvider(LocalCompact provides compact) {
     MaterialTheme(
         typography = appTypography(),
         colorScheme = darkColorScheme(
@@ -112,6 +117,7 @@ fun PopTheme(content: @Composable () -> Unit) {
         ),
         content = content,
     )
+    }
 }
 
 /** Haut du dégradé : graphite, ou graphite teinté par la couleur de l'affiche (assombri pour rester lisible). */

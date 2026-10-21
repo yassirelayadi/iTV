@@ -52,7 +52,6 @@ import fr.poptv.player.data.Channel
 import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Section
 
-private val SidePadding = 48.dp
 private const val SHELF_LIMIT = 40
 private const val CAT_RECENT = "__recent"
 
@@ -171,7 +170,7 @@ fun ChannelsScreen(
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 180.dp),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = SidePadding, vertical = 16.dp),
+                contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -194,7 +193,7 @@ fun ChannelsScreen(
 @Composable
 private fun CategoryTabs(state: UiState, onSelect: (String) -> Unit) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = SidePadding, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = CAT_ALL) {
@@ -221,7 +220,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
     val program = info?.now(nowSec)
     Row(
         modifier = Modifier
-            .padding(horizontal = SidePadding)
+            .padding(horizontal = ScreenPadding)
             .fillMaxWidth()
             .clip(RoundedCornerShape(26.dp))
             .background(Brush.horizontalGradient(listOf(Color(0xFF2A3F6B), Color(0xFF1C1C1F))))
@@ -317,10 +316,10 @@ private fun ShelfRow(
             fontSize = 22.sp,
             fontWeight = FontWeight.Medium,
             color = TextPrimary,
-            modifier = Modifier.padding(horizontal = SidePadding),
+            modifier = Modifier.padding(horizontal = ScreenPadding),
         )
         LazyRow(
-            contentPadding = PaddingValues(horizontal = SidePadding, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(visible, key = { it.id }) { channel ->

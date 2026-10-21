@@ -1,5 +1,6 @@
 package fr.poptv.player.ui
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,9 +58,10 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
-                .width(520.dp)
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 24.dp),
+                .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

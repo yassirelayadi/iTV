@@ -2,6 +2,9 @@ package fr.poptv.player.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
@@ -40,7 +43,8 @@ import androidx.compose.ui.unit.sp
 import fr.poptv.player.UiState
 import fr.poptv.player.data.Section
 
-internal val ScreenPadding = 48.dp
+internal val ScreenPadding: androidx.compose.ui.unit.Dp
+    @Composable get() = if (LocalCompact.current) 16.dp else 48.dp
 
 /**
  * Cadre des écrans d'accueil : menu vertical à gauche (Chaînes, Films, Séries, recherche, réglages)
@@ -58,6 +62,24 @@ fun AppShell(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var searchOpen by remember(state.section) { mutableStateOf(false) }
+
+    if (LocalCompact.current) {
+        Column(modifier = modifier.fillMaxSize()) {
+            AnimatedVisibility(visible = headerVisible) {
+                ScreenHeader(
+                    state = state,
+                    showSearch = searchOpen || state.query.isNotEmpty(),
+                    focusSearch = searchOpen,
+                    onQuery = onQuery,
+                    onSearch = { searchOpen = true },
+                    onSettings = onSettings,
+                )
+            }
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().appear()) { content() }
+            BottomBar(state = state, onSection = onSection)
+        }
+        return
+    }
 
     Row(modifier = modifier.fillMaxSize()) {
         SideRail(
@@ -86,7 +108,10 @@ private fun ScreenHeader(
     showSearch: Boolean,
     focusSearch: Boolean,
     onQuery: (String) -> Unit,
+    onSearch: (() -> Unit)? = null,
+    onSettings: (() -> Unit)? = null,
 ) {
+    val compact = LocalCompact.current
     val loading = when (state.section) {
         Section.LIVE -> state.loading
         Section.MOVIES -> state.moviesLoading
@@ -105,12 +130,19 @@ private fun ScreenHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = ScreenPadding, end = ScreenPadding, top = 22.dp, bottom = 6.dp),
+            .padding(
+                start = ScreenPadding,
+                end = if (compact) 8.dp else ScreenPadding,
+                top = if (compact) 10.dp else 22.dp,
+                bottom = 6.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 14.dp),
     ) {
-        Text(title, fontSize = 34.sp, fontWeight = FontWeight.Light, color = TextPrimary)
-        Spacer(Modifier.weight(1f))
+        if (!(compact && showSearch)) {
+            Text(title, fontSize = if (compact) 28.sp else 34.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+        }
+        if (!(compact && showSearch)) Spacer(Modifier.weight(1f))
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
         }
@@ -119,12 +151,58 @@ private fun ScreenHeader(
                 value = state.query,
                 onChange = onQuery,
                 placeholder = "Rechercher",
-                modifier = Modifier.width(260.dp).focusRequester(searchFocus),
+                modifier = (if (compact) Modifier.weight(1f) else Modifier.width(260.dp)).focusRequester(searchFocus),
                 imeAction = ImeAction.Search,
                 shape = RoundedCornerShape(50),
                 leadingIcon = Icons.Filled.Search,
             )
         }
+        if (compact) {
+            if (!showSearch && onSearch != null) HeaderIcon(Icons.Filled.Search, "Rechercher", onSearch)
+            if (onSettings != null) HeaderIcon(Icons.Filled.Settings, "Réglages", onSettings)
+        }
+    }
+}
+
+/** Bouton icône du haut d'écran (téléphone). */
+@Composable
+private fun HeaderIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
+    androidx.compose.material3.IconButton(onClick = onClick) {
+        Icon(icon, contentDescription = label, tint = TextSecondary, modifier = Modifier.size(26.dp))
+    }
+}
+
+/** Menu du bas (téléphone) : Chaînes, Films, Séries. */
+@Composable
+private fun BottomBar(state: UiState, onSection: (Section) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0x66000000))
+            .navigationBarsPadding()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        BottomItem(AppIcons.Tv, "Chaînes", state.section == Section.LIVE) { onSection(Section.LIVE) }
+        if (state.vodSupported) {
+            BottomItem(AppIcons.Movie, "Films", state.section == Section.MOVIES) { onSection(Section.MOVIES) }
+            BottomItem(AppIcons.Library, "Séries", state.section == Section.SERIES) { onSection(Section.SERIES) }
+        }
+    }
+}
+
+@Composable
+private fun BottomItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    val color = if (selected) Accent else TextSecondary
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 22.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(26.dp))
+        Text(label, color = color, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
     }
 }
 

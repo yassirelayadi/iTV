@@ -1,5 +1,6 @@
 package fr.poptv.player.ui
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -50,9 +51,10 @@ fun SettingsScreen(
     ) {
         Column(
             modifier = Modifier
-                .width(640.dp)
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 32.dp),
+                .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("Réglages", fontSize = 40.sp, fontWeight = FontWeight.Light, color = TextPrimary)

@@ -1,5 +1,7 @@
 package fr.poptv.player.ui
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +37,7 @@ import fr.poptv.player.data.Section
  * Choix des catégories affichées pour une section. Chaque ligne bascule Affichée / Masquée ;
  * les boutons du haut s'appliquent à toute la liste, ou aux résultats si un filtre est saisi.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CategoriesScreen(
     state: UiState,
@@ -95,21 +98,24 @@ fun CategoriesScreen(
             .fillMaxSize()
             .appBackground()
             .appear()
-            .padding(horizontal = 56.dp, vertical = 32.dp),
+            .padding(
+                horizontal = if (LocalCompact.current) 16.dp else 56.dp,
+                vertical = if (LocalCompact.current) 16.dp else 32.dp,
+            ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(title, fontSize = 32.sp, fontWeight = FontWeight.Light, color = TextPrimary)
         Text("$visibleCount affichées sur ${categories.size}", color = TextSecondary)
 
-        Row(
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             MinimalField(
                 value = query,
                 onChange = { query = it },
                 placeholder = "Filtrer les catégories",
-                modifier = Modifier.width(300.dp),
+                modifier = if (LocalCompact.current) Modifier.fillMaxWidth() else Modifier.width(300.dp),
                 imeAction = ImeAction.Search,
                 shape = RoundedCornerShape(50),
             )
