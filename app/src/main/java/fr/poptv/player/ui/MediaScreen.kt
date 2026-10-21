@@ -278,7 +278,8 @@ private fun ResumeRow(
                     onFocus = {
                         onFocusInfo(HeroInfo(entry.title, "Reprendre à ${formatTime(entry.positionMs)}", null, entry.poster))
                     },
-                    modifier = Modifier.width(posterWidth()),
+                    aspect = 16f / 9f,
+                    modifier = Modifier.width(if (LocalCompact.current) 158.dp else 236.dp),
                 )
             }
         }
@@ -336,7 +337,7 @@ private fun VodShelfRow(
     }
 }
 
-/** Affiche verticale (2:3) avec le titre dessous et, si fourni, une barre de progression. */
+/** Affiche (2:3 par défaut, 16:9 pour « Reprendre ») avec le titre dessous et, si fourni, une barre de progression. */
 @Composable
 private fun PosterTile(
     title: String,
@@ -345,6 +346,7 @@ private fun PosterTile(
     modifier: Modifier = Modifier,
     progress: Float? = null,
     rating: String? = null,
+    aspect: Float = 2f / 3f,
     onFocus: () -> Unit = {},
 ) {
     var tileFocused by remember { mutableStateOf(false) }
@@ -359,7 +361,7 @@ private fun PosterTile(
     ) {
         FocusItem(
             onClick = onClick,
-            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
+            modifier = Modifier.fillMaxWidth().aspectRatio(aspect),
             focusScale = 1.08f,
             focusRing = true,
         ) {
