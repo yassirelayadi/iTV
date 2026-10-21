@@ -26,8 +26,6 @@ data class Playlist(
     val channels: List<Channel>,
 )
 
-/** type = "xtream" ou "m3u". */
-@Serializable
 /** Informations du compte IPTV (Xtream : identifiant, statut, expiration, connexions). */
 data class AccountInfo(
     val xtream: Boolean = true,
@@ -42,6 +40,8 @@ data class AccountInfo(
     val fromServer: Boolean = false,
 )
 
+/** type = "xtream" ou "m3u". */
+@Serializable
 data class Credentials(
     val type: String = "xtream",
     val server: String = "",
