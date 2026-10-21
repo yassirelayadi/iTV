@@ -168,7 +168,7 @@ fun ChannelsScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 180.dp),
+                columns = GridCells.Adaptive(minSize = tileWidth()),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -212,6 +212,10 @@ private fun CategoryTabs(state: UiState, onSelect: (String) -> Unit) {
     }
 }
 
+/** Largeur d'une carte de chaîne : réduite sur téléphone. */
+@Composable
+private fun tileWidth() = if (LocalCompact.current) 120.dp else 180.dp
+
 /** Bandeau du haut : la dernière chaîne regardée, avec un bouton pour la reprendre. */
 @Composable
 private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> Unit, onPlay: () -> Unit) {
@@ -222,15 +226,15 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
         modifier = Modifier
             .padding(horizontal = ScreenPadding)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(if (LocalCompact.current) 18.dp else 26.dp))
             .background(Brush.horizontalGradient(listOf(Color(0xFF2A3F6B), Color(0xFF1C1C1F))))
-            .padding(horizontal = 24.dp, vertical = 18.dp),
+            .padding(horizontal = if (LocalCompact.current) 14.dp else 24.dp, vertical = if (LocalCompact.current) 10.dp else 18.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (LocalCompact.current) 14.dp else 22.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(84.dp)
+                .size(if (LocalCompact.current) 52.dp else 84.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(Color(0x33FFFFFF)),
             contentAlignment = Alignment.Center,
@@ -262,7 +266,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
                 Text(
                     channel.name,
                     color = TextPrimary,
-                    fontSize = 28.sp,
+                    fontSize = if (LocalCompact.current) 18.sp else 28.sp,
                     fontWeight = FontWeight.Light,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -274,7 +278,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
                 Text(
                     "${program.title}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}",
                     color = TextPrimary,
-                    fontSize = 15.sp,
+                    fontSize = if (LocalCompact.current) 12.sp else 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -330,14 +334,14 @@ private fun ShelfRow(
                     favorite = channel.id in favorites,
                     onClick = { onPlay(channel, shelf.channels) },
                     onLongClick = { onToggleFavorite(channel.id) },
-                    modifier = Modifier.width(180.dp),
+                    modifier = Modifier.width(tileWidth()),
                 )
             }
             if (shelf.channels.size > SHELF_LIMIT && shelf.id != CAT_RECENT) {
                 item(key = "see-all") {
                     FocusItem(
                         onClick = onSeeAll,
-                        modifier = Modifier.width(180.dp).aspectRatio(4f / 3f),
+                        modifier = Modifier.width(tileWidth()).aspectRatio(4f / 3f),
                         focusScale = 1.08f,
                         focusRing = true,
                     ) {
@@ -377,11 +381,11 @@ private fun ChannelTile(
         focusRing = true,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = if (LocalCompact.current) 8.dp else 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Box(modifier = Modifier.size(if (program != null) 50.dp else 58.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(if (LocalCompact.current) (if (program != null) 34.dp else 40.dp) else if (program != null) 50.dp else 58.dp), contentAlignment = Alignment.Center) {
                 if (channel.logo != null) {
                     AsyncImage(
                         model = rememberImage(channel.logo, 256, 256),

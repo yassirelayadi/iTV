@@ -154,7 +154,7 @@ fun DetailScreen(
         val poster: @Composable () -> Unit = {
             Box(
                 modifier = Modifier
-                    .width(if (compact) 130.dp else 190.dp)
+                    .width(if (compact) 108.dp else 190.dp)
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface1),
@@ -177,7 +177,7 @@ fun DetailScreen(
             ) {
                 Text(
                     item.name,
-                    fontSize = if (compact) 26.sp else 32.sp,
+                    fontSize = if (compact) 24.sp else 32.sp,
                     fontWeight = FontWeight.Light,
                     color = TextPrimary,
                     maxLines = 2,
@@ -194,7 +194,7 @@ fun DetailScreen(
                             color = TextSecondary,
                             fontSize = 15.sp,
                             lineHeight = 22.sp,
-                            maxLines = 6,
+                            maxLines = if (compact) 3 else 6,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -277,7 +277,7 @@ fun DetailScreen(
                                 EpisodePanel(shown, fallbackPlot = plot)
                             }
 
-                            if (!compact) Spacer(Modifier.weight(1f))
+                            Spacer(Modifier.weight(1f))
 
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -290,7 +290,7 @@ fun DetailScreen(
                                         watched = "e:${episode.id}" in watched,
                                         onClick = { onPlayEpisode(episode, season.episodes) },
                                         onFocused = { focusedEpisodeId = episode.id },
-                                        modifier = Modifier.width(if (compact) 170.dp else 220.dp),
+                                        modifier = Modifier.width(if (compact) 150.dp else 220.dp),
                                     )
                                 }
                             }
@@ -300,28 +300,14 @@ fun DetailScreen(
             }
         }
 
-        if (compact) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                poster()
-                info(Modifier.fillMaxWidth())
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 56.dp, vertical = 36.dp),
-                horizontalArrangement = Arrangement.spacedBy(40.dp),
-            ) {
-                poster()
-                info(Modifier.weight(1f))
-            }
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = if (compact) 28.dp else 56.dp, vertical = if (compact) 18.dp else 36.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 22.dp else 40.dp),
+        ) {
+            poster()
+            info(Modifier.weight(1f))
         }
     }
 }

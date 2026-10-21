@@ -95,7 +95,6 @@ fun VodPlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    ForceLandscape()
     val latestOnProgress by rememberUpdatedState(onProgress)
     val latestOnEnded by rememberUpdatedState(onEnded)
     val latestOnNext by rememberUpdatedState(onNext)

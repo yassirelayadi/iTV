@@ -77,7 +77,6 @@ fun PlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    ForceLandscape()
 
     val player = remember {
         // Tampons réduits pour un zapping rapide.

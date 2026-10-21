@@ -187,7 +187,7 @@ fun MediaScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    columns = GridCells.Adaptive(minSize = posterWidth()),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -278,12 +278,16 @@ private fun ResumeRow(
                     onFocus = {
                         onFocusInfo(HeroInfo(entry.title, "Reprendre à ${formatTime(entry.positionMs)}", null, entry.poster))
                     },
-                    modifier = Modifier.width(150.dp),
+                    modifier = Modifier.width(posterWidth()),
                 )
             }
         }
     }
 }
+
+/** Largeur d'une affiche : réduite sur téléphone. */
+@Composable
+private fun posterWidth() = if (LocalCompact.current) 88.dp else 150.dp
 
 @Composable
 private fun VodShelfRow(
@@ -308,14 +312,14 @@ private fun VodShelfRow(
                     onClick = { onOpen(item) },
                     rating = ratingLabel(item.rating),
                     onFocus = { onFocusInfo(item.hero(categoryNames[item.categoryId])) },
-                    modifier = Modifier.width(150.dp),
+                    modifier = Modifier.width(posterWidth()),
                 )
             }
             if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP) {
                 item(key = "see-all") {
                     FocusItem(
                         onClick = onSeeAll,
-                        modifier = Modifier.width(150.dp).aspectRatio(2f / 3f),
+                        modifier = Modifier.width(posterWidth()).aspectRatio(2f / 3f),
                         focusScale = 1.08f,
                         focusRing = true,
                     ) {
@@ -408,7 +412,7 @@ private fun PosterTile(
         Text(
             title,
             color = titleColor,
-            fontSize = 13.sp,
+            fontSize = if (LocalCompact.current) 11.sp else 13.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp),
