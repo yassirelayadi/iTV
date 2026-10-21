@@ -28,6 +28,20 @@ data class Playlist(
 
 /** type = "xtream" ou "m3u". */
 @Serializable
+/** Informations du compte IPTV (Xtream : identifiant, statut, expiration, connexions). */
+data class AccountInfo(
+    val xtream: Boolean = true,
+    val username: String = "",
+    val status: String? = null,
+    /** Date d'expiration (secondes Unix) ; null si illimitée ou non communiquée. */
+    val expiresSec: Long? = null,
+    val maxConnections: Int? = null,
+    val activeConnections: Int? = null,
+    val trial: Boolean = false,
+    /** Vrai quand le serveur a répondu (sinon seul l'identifiant saisi est connu). */
+    val fromServer: Boolean = false,
+)
+
 data class Credentials(
     val type: String = "xtream",
     val server: String = "",

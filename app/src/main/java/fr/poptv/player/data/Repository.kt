@@ -138,6 +138,10 @@ class Repository(private val context: Context) {
     suspend fun seriesInfo(creds: Credentials, id: String): Pair<DetailInfo, List<Season>> =
         withContext(Dispatchers.IO) { XtreamClient.seriesInfo(creds, id) }
 
+    suspend fun account(creds: Credentials): AccountInfo = withContext(Dispatchers.IO) {
+        XtreamClient.accountInfo(creds)
+    }
+
     suspend fun epg(creds: Credentials, channelId: String): List<Program> = withContext(Dispatchers.IO) {
         XtreamClient.shortEpg(creds, channelId)
     }

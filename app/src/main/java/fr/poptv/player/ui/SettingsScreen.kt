@@ -28,7 +28,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.poptv.player.UiState
+import fr.poptv.player.data.AccountInfo
 import fr.poptv.player.data.Section
+import androidx.compose.ui.draw.clip
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** Réglages : catégories à afficher, actualisation, compte. */
 @Composable
@@ -59,6 +64,8 @@ fun SettingsScreen(
         ) {
             Text("Réglages", fontSize = 40.sp, fontWeight = FontWeight.Light, color = TextPrimary)
             Spacer(Modifier.height(8.dp))
+
+            ProfileCard(state.account, state.accountLoading)
 
             SettingRow(
                 title = "Catégories des chaînes",
@@ -98,6 +105,71 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/** Section Profil : identifiant, statut, date d'expiration et connexions du compte. */
+@Composable
+private fun ProfileCard(account: AccountInfo?, loading: Boolean) {
+    if (account == null) return
+    val lines = buildList {
+        if (account.xtream) {
+            add("Identifiant" to account.username.ifBlank { "—" })
+            val status = account.status?.let {
+                when (it.lowercase()) {
+                    "active" -> "Actif"
+                    "expired" -> "Expiré"
+                    "banned" -> "Suspendu"
+                    "disabled" -> "Désactivé"
+                    else -> it
+                }
+            }
+            if (status != null) add("Statut" to (status + if (account.trial) " (essai)" else ""))
+            val exp = account.expiresSec
+            add(
+                "Expire le" to when {
+                    exp != null -> expiryText(exp)
+                    account.fromServer -> "Illimité"
+                    loading -> "Chargement…"
+                    else -> "Non communiqué par le fournisseur"
+                },
+            )
+            if (account.maxConnections != null) {
+                val used = account.activeConnections
+                add("Connexions" to if (used != null) "$used en cours sur ${account.maxConnections}" else "${account.maxConnections} autorisées")
+            }
+        } else {
+            add("Type" to "Liste M3U")
+            if (account.username.isNotBlank()) add("Serveur" to account.username)
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .padding(horizontal = 22.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Profil", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+        lines.forEach { (label, value) ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(label, color = TextSecondary, fontSize = 14.sp, modifier = Modifier.width(110.dp))
+                Text(value, color = TextPrimary, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+private fun expiryText(expSec: Long): String {
+    val date = SimpleDateFormat("d MMMM yyyy", Locale.FRENCH).format(Date(expSec * 1000))
+    val days = (expSec - System.currentTimeMillis() / 1000).floorDiv(86_400L)
+    val rest = when {
+        days < 0 -> "expiré"
+        days == 0L -> "aujourd'hui"
+        days == 1L -> "demain"
+        else -> "dans $days jours"
+    }
+    return "$date  ·  $rest"
 }
 
 private fun summary(total: Int, hidden: Int): String = when {

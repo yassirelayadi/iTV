@@ -41,12 +41,12 @@ object XtreamClient {
         return s
     }
 
-    private fun api(creds: Credentials, action: String, params: Map<String, String> = emptyMap()): String {
+    private fun api(creds: Credentials, action: String?, params: Map<String, String> = emptyMap()): String {
         val base = normalizeServer(creds.server)
         val url = "$base/player_api.php".toHttpUrl().newBuilder()
             .addQueryParameter("username", creds.username)
             .addQueryParameter("password", creds.password)
-            .addQueryParameter("action", action)
+            .apply { if (action != null) addQueryParameter("action", action) }
             .apply { params.forEach { (key, value) -> addQueryParameter(key, value) } }
             .build()
         val request = Request.Builder().url(url).header("User-Agent", "iTV/0.1").build()
@@ -159,6 +159,21 @@ object XtreamClient {
                 added = o.str("added")?.toLongOrNull() ?: 0L,
             )
         }
+
+    /** Informations du compte (user_info) : statut, expiration, connexions. */
+    fun accountInfo(creds: Credentials): AccountInfo {
+        val root = parseObject(api(creds, null))
+        val u = root["user_info"] as? JsonObject ?: error("Compte introuvable")
+        return AccountInfo(
+            username = u.text("username") ?: creds.username,
+            status = u.text("status"),
+            expiresSec = u.str("exp_date")?.toLongOrNull()?.takeIf { it > 0 },
+            maxConnections = u.str("max_connections")?.toIntOrNull(),
+            activeConnections = u.str("active_cons")?.toIntOrNull(),
+            trial = u.str("is_trial") == "1",
+            fromServer = true,
+        )
+    }
 
     fun vodInfo(creds: Credentials, id: String): DetailInfo {
         val root = parseObject(api(creds, "get_vod_info", mapOf("vod_id" to id)))

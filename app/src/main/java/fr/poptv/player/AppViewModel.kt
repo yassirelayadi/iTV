@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fr.poptv.player.data.Category
 import fr.poptv.player.data.Channel
+import fr.poptv.player.data.AccountInfo
 import fr.poptv.player.data.Credentials
 import fr.poptv.player.data.Detail
 import fr.poptv.player.data.Episode
@@ -87,6 +88,8 @@ data class UiState(
     val hiddenMovies: Set<String> = emptySet(),
     val hiddenSeries: Set<String> = emptySet(),
     val settingsOpen: Boolean = false,
+    val account: AccountInfo? = null,
+    val accountLoading: Boolean = false,
     val manageSection: Section? = null,
 )
 
@@ -290,7 +293,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Réglages et catégories masquées ----
 
-    fun openSettings() = _state.update { it.copy(settingsOpen = true) }
+    fun openSettings() {
+        _state.update { it.copy(settingsOpen = true) }
+        loadAccount()
+    }
+
+    /** Charge le profil du compte (identifiant, expiration) à l'ouverture des réglages. */
+    private fun loadAccount() {
+        val creds = credentials ?: return
+        if (creds.type != "xtream") {
+            val host = runCatching { android.net.Uri.parse(creds.m3uUrl).host }.getOrNull().orEmpty()
+            _state.update { it.copy(account = AccountInfo(xtream = false, username = host), accountLoading = false) }
+            return
+        }
+        _state.update {
+            it.copy(
+                account = it.account ?: AccountInfo(username = creds.username),
+                accountLoading = true,
+            )
+        }
+        viewModelScope.launch {
+            val info = try {
+                repo.account(creds)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AccountInfo(username = creds.username)
+            }
+            _state.update { it.copy(account = info, accountLoading = false) }
+        }
+    }
 
     fun closeSettings() = _state.update {
         it.copy(settingsOpen = false, manageSection = null, selectedCategory = CAT_ALL, query = "")
