@@ -7,6 +7,8 @@ import fr.poptv.player.data.Category
 import fr.poptv.player.data.Channel
 import fr.poptv.player.data.AccountInfo
 import fr.poptv.player.data.Credentials
+import fr.poptv.player.data.DetailInfo
+import fr.poptv.player.data.M3uClassifier
 import fr.poptv.player.data.Detail
 import fr.poptv.player.data.Episode
 import fr.poptv.player.data.EpgInfo
@@ -138,6 +140,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val epgGate = Semaphore(3)
 
     private var credentials: Credentials? = null
+
+    // Listes M3U : épisodes par série et adresses de lecture, reconstruits à chaque chargement.
+    private var m3uEpisodes: Map<String, List<Episode>> = emptyMap()
+    private var m3uUrls: Map<String, String> = emptyMap()
     private var queue: List<VodPlayback> = emptyList()
     private var queueIndex = -1
 
@@ -242,14 +248,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 // Une playlist M3U contient souvent des identifiants dans ses liens : on ne la met pas en cache.
                 if (creds.type == "xtream") repo.saveCache(playlist)
+                // M3U : on sépare chaînes, films et séries d'après les adresses et les groupes.
+                val library = if (creds.type == "m3u") M3uClassifier.split(playlist) else null
+                if (library != null) {
+                    m3uEpisodes = library.episodes
+                    m3uUrls = library.urls
+                }
+                val live = library?.live ?: playlist
                 _state.update {
                     it.copy(
-                        allCategories = playlist.categories,
-                        allChannels = playlist.channels,
-                        vodSupported = creds.type == "xtream",
+                        allCategories = live.categories,
+                        allChannels = live.channels,
+                        vodSupported = if (library != null) {
+                            library.movies.items.isNotEmpty() || library.series.items.isNotEmpty()
+                        } else {
+                            creds.type == "xtream"
+                        },
                         section = if (firstLogin) Section.LIVE else it.section,
-                        allMovies = if (firstLogin) VodCatalog() else it.allMovies,
-                        allSeries = if (firstLogin) VodCatalog() else it.allSeries,
+                        allMovies = library?.movies ?: if (firstLogin) VodCatalog() else it.allMovies,
+                        allSeries = library?.series ?: if (firstLogin) VodCatalog() else it.allSeries,
                         hiddenLive = if (firstLogin) emptySet() else it.hiddenLive,
                         hiddenMovies = if (firstLogin) emptySet() else it.hiddenMovies,
                         hiddenSeries = if (firstLogin) emptySet() else it.hiddenSeries,
@@ -355,6 +372,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun loadMedia(section: Section, force: Boolean) {
         val creds = credentials ?: return
+        if (creds.type != "xtream") return // M3U : le catalogue est déjà trié au chargement
         val s = _state.value
         val isMovies = section == Section.MOVIES
         val loaded = (if (isMovies) s.allMovies else s.allSeries).items.isNotEmpty()
@@ -423,6 +441,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun openMovie(item: VodItem) {
         _state.update { it.copy(detail = Detail(item = item, isSeries = false)) }
         val creds = credentials ?: return
+        if (creds.type != "xtream") {
+            updateDetail(item.id) { it.copy(info = DetailInfo(year = item.year), loading = false) }
+            return
+        }
         viewModelScope.launch {
             try {
                 val info = repo.vodInfo(creds, item.id)
@@ -439,6 +461,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun openSeries(item: VodItem) {
         _state.update { it.copy(detail = Detail(item = item, isSeries = true)) }
         val creds = credentials ?: return
+        if (creds.type != "xtream") {
+            val seasons = M3uClassifier.seasons(m3uEpisodes[item.id].orEmpty())
+            updateDetail(item.id) {
+                it.copy(
+                    seasons = seasons,
+                    loading = false,
+                    error = if (seasons.isEmpty()) "Aucun épisode disponible pour cette série." else null,
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             try {
                 val (info, seasons) = repo.seriesInfo(creds, item.id)
@@ -482,7 +515,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     key = key,
                     kind = "movie",
                     title = detail.item.name,
-                    url = XtreamClient.movieUrl(creds, detail.item),
+                    url = detail.item.url ?: XtreamClient.movieUrl(creds, detail.item),
                     ext = detail.item.ext,
                     poster = detail.item.poster,
                     startMs = if (fromStart) 0L else resumePosition(key),
@@ -500,7 +533,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 key = "e:${ep.id}",
                 kind = "episode",
                 title = "${detail.item.name} · S${ep.season} E${ep.number}",
-                url = XtreamClient.episodeUrl(creds, ep),
+                url = ep.url ?: XtreamClient.episodeUrl(creds, ep),
                 ext = ep.ext,
                 poster = detail.item.poster,
                 startMs = 0L,
@@ -532,7 +565,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     kind = entry.kind,
                     title = entry.title,
                     // L'URL est reconstruite avec les identifiants actuels : l'historique n'en contient pas.
-                    url = XtreamClient.mediaUrl(creds, entry.kind, entry.key.substringAfter(':'), entry.ext),
+                    url = m3uUrls[entry.key.substringAfter(':')]
+                        ?: if (creds.type == "xtream") {
+                            XtreamClient.mediaUrl(creds, entry.kind, entry.key.substringAfter(':'), entry.ext)
+                        } else {
+                            return
+                        },
                     ext = entry.ext,
                     poster = entry.poster,
                     startMs = entry.positionMs,

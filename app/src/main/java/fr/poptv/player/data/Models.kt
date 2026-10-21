@@ -65,6 +65,8 @@ data class VodItem(
     val plot: String? = null,
     /** Date d'ajout au catalogue (secondes depuis 1970), 0 si inconnue. */
     val added: Long = 0,
+    /** Adresse de lecture directe (listes M3U) ; null pour les comptes Xtream. */
+    val url: String? = null,
 )
 
 @Serializable
@@ -97,6 +99,8 @@ data class Episode(
     val plot: String? = null,
     val image: String? = null,
     val duration: String? = null,
+    /** Adresse de lecture directe (listes M3U). */
+    val url: String? = null,
 )
 
 data class Season(
