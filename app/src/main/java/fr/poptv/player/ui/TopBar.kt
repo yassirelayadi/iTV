@@ -138,6 +138,36 @@ private fun ScreenHeader(
     }
 }
 
+@Composable
+private fun SideRail(
+    state: UiState,
+    onSection: (Section) -> Unit,
+    onSearch: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    val compact = LocalCompact.current
+    Column(
+        modifier = Modifier
+            .width(if (compact) 58.dp else 80.dp)
+            .fillMaxHeight()
+            .background(Color(0x40000000))
+            .padding(vertical = if (compact) 12.dp else 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
+    ) {
+        LogoText(size = if (compact) 16.sp else 22.sp)
+        Spacer(Modifier.height(if (compact) 6.dp else 14.dp))
+        RailButton(AppIcons.Tv, "Chaînes", selected = state.section == Section.LIVE) { onSection(Section.LIVE) }
+        if (state.vodSupported) {
+            RailButton(AppIcons.Movie, "Films", selected = state.section == Section.MOVIES) { onSection(Section.MOVIES) }
+            RailButton(AppIcons.Library, "Séries", selected = state.section == Section.SERIES) { onSection(Section.SERIES) }
+        }
+        Spacer(Modifier.weight(1f))
+        RailButton(Icons.Filled.Search, "Rechercher", selected = false, onClick = onSearch)
+        RailButton(Icons.Filled.Settings, "Réglages", selected = false, onClick = onSettings)
+    }
+}
+
 /** Icône du menu latéral : pastille bleue si c'est la section affichée, blanche au focus. */
 @Composable
 private fun RailButton(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
