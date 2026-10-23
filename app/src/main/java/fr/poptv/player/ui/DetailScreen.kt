@@ -279,7 +279,14 @@ fun DetailScreen(
 
                             Spacer(Modifier.weight(1f))
 
+                            // La liste s'ouvre sur l'épisode à reprendre (ou le prochain à voir).
+                            val episodesState = rememberLazyListState()
+                            LaunchedEffect(season.number) {
+                                val index = season.episodes.indexOfFirst { it.id == target?.episode?.id }
+                                episodesState.scrollToItem(index.coerceAtLeast(0))
+                            }
                             LazyRow(
+                                state = episodesState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(vertical = 10.dp),
                             ) {
@@ -399,6 +406,21 @@ private fun EpisodeTile(
                     Modifier.align(Alignment.Center)
                 },
             )
+            // Pastille « Reprendre », en haut à gauche, pour l'épisode commencé et pas fini.
+            if (resume != null && !watched) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .background(Accent, RoundedCornerShape(50))
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                    Text("Reprendre", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
             // Coche « vu », en haut à droite.
             if (watched) {
                 Box(
@@ -440,7 +462,14 @@ private fun EpisodeTile(
                 overflow = TextOverflow.Ellipsis,
             )
             if (meta.isNotEmpty()) {
-                Text(meta, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    meta,
+                    color = if (resume != null && !watched) Accent else TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = if (resume != null && !watched) FontWeight.Medium else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
