@@ -72,7 +72,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -100,12 +102,24 @@ fun VodPlayerScreen(
     val latestOnNext by rememberUpdatedState(onNext)
 
     val player = remember {
+        // Grand tampon (jusqu'à 2 min, 48 Mo) pour absorber les ralentissements du serveur ou du Wi-Fi,
+        // et plusieurs essais avant d'abandonner un morceau de vidéo qui n'arrive pas.
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30_000, 120_000, 2_500, 5_000)
+            .setTargetBufferBytes(48 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent("iTV/0.1"))
+                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(8)),
             )
+            .setLoadControl(loadControl)
             .build()
     }
+    // Reconnexion automatique après une coupure réseau (reprise à la même position).
+    var retryCount by remember { mutableIntStateOf(0) }
+    var retryTick by remember { mutableIntStateOf(0) }
 
     var buffering by remember { mutableStateOf(true) }
     var paused by remember { mutableStateOf(false) }
@@ -135,7 +149,10 @@ fun VodPlayerScreen(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
-                if (playbackState == Player.STATE_READY) error = null
+                if (playbackState == Player.STATE_READY) {
+                    error = null
+                    retryCount = 0
+                }
                 if (playbackState == Player.STATE_ENDED) latestOnEnded()
             }
 
@@ -148,6 +165,17 @@ fun VodPlayerScreen(
             }
 
             override fun onPlayerError(e: PlaybackException) {
+                val network = e.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    e.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                    e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                    e.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+                    e.errorCode == PlaybackException.ERROR_CODE_TIMEOUT
+                if (network && retryCount < 4) {
+                    retryCount++
+                    buffering = true
+                    retryTick++
+                    return
+                }
                 buffering = false
                 error = "Lecture impossible (${e.errorCodeName}). OK pour réessayer."
             }
@@ -163,6 +191,15 @@ fun VodPlayerScreen(
 
     LaunchedEffect(Unit) {
         player.setMediaItem(MediaItem.fromUri(playback.url), playback.startMs)
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    LaunchedEffect(retryTick) {
+        if (retryTick == 0) return@LaunchedEffect
+        delay(1_500L * retryCount)
+        val resumeAt = player.currentPosition.coerceAtLeast(0L)
+        player.setMediaItem(MediaItem.fromUri(playback.url), resumeAt)
         player.prepare()
         player.playWhenReady = true
     }
@@ -350,6 +387,14 @@ fun VodPlayerScreen(
 
         if (buffering && error == null) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            if (retryCount > 0) {
+                Text(
+                    "Reconnexion… ($retryCount/4)",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Center).padding(top = 80.dp),
+                )
+            }
         }
 
         error?.let {
