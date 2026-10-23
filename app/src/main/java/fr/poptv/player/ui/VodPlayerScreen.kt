@@ -102,11 +102,11 @@ fun VodPlayerScreen(
     val latestOnNext by rememberUpdatedState(onNext)
 
     val player = remember {
-        // Grand tampon (jusqu'à 2 min, 48 Mo) pour absorber les ralentissements du serveur ou du Wi-Fi,
+        // Grand tampon (jusqu'à 2 min, 96 Mo) pour absorber les ralentissements du serveur ou du Wi-Fi,
         // et plusieurs essais avant d'abandonner un morceau de vidéo qui n'arrive pas.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(30_000, 120_000, 2_500, 5_000)
-            .setTargetBufferBytes(48 * 1024 * 1024)
+            .setTargetBufferBytes(96 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
