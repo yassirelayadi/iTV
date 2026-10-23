@@ -111,8 +111,11 @@ fun VodPlayerScreen(
             .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent("iTV/0.1"))
-                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(8)),
+                // Délai de lecture réduit à 20 s : un serveur qui ne répond plus est détecté vite.
+                DefaultMediaSourceFactory(
+                    OkHttpDataSource.Factory(Http.client.newBuilder().readTimeout(20, java.util.concurrent.TimeUnit.SECONDS).build())
+                        .setUserAgent("iTV/0.1"),
+                ).setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(3)),
             )
             .setLoadControl(loadControl)
             .build()
@@ -120,6 +123,7 @@ fun VodPlayerScreen(
     // Reconnexion automatique après une coupure réseau (reprise à la même position).
     var retryCount by remember { mutableIntStateOf(0) }
     var retryTick by remember { mutableIntStateOf(0) }
+    var retryReason by remember { mutableStateOf("") }
 
     var buffering by remember { mutableStateOf(true) }
     var paused by remember { mutableStateOf(false) }
@@ -170,7 +174,8 @@ fun VodPlayerScreen(
                     e.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
                     e.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
                     e.errorCode == PlaybackException.ERROR_CODE_TIMEOUT
-                if (network && retryCount < 4) {
+                if (network && retryCount < 2) {
+                    retryReason = e.errorCodeName.removePrefix("ERROR_CODE_")
                     retryCount++
                     buffering = true
                     retryTick++
@@ -197,7 +202,7 @@ fun VodPlayerScreen(
 
     LaunchedEffect(retryTick) {
         if (retryTick == 0) return@LaunchedEffect
-        delay(1_500L * retryCount)
+        delay(1_000L * retryCount)
         val resumeAt = player.currentPosition.coerceAtLeast(0L)
         player.setMediaItem(MediaItem.fromUri(playback.url), resumeAt)
         player.prepare()
@@ -389,7 +394,7 @@ fun VodPlayerScreen(
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             if (retryCount > 0) {
                 Text(
-                    "Reconnexion… ($retryCount/4)",
+                    "Reconnexion… ($retryCount/2) · $retryReason",
                     color = TextSecondary,
                     fontSize = 14.sp,
                     modifier = Modifier.align(Alignment.Center).padding(top = 80.dp),
