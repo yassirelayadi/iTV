@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fr.poptv.player.data.Category
 import fr.poptv.player.data.Channel
+import fr.poptv.player.ui.precomputeShelves
 import fr.poptv.player.data.AccountInfo
 import fr.poptv.player.data.Credentials
 import fr.poptv.player.data.DetailInfo
@@ -29,7 +30,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -179,6 +182,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (tmdbKeyValue == null) _state.update { it.copy(picks = TmdbPicks()) }
                 else ensureTmdb()
             }
+        }
+        // Les rangées des écrans Films et Séries sont calculées dès que le catalogue change,
+        // hors du fil principal : à l'ouverture de l'écran, elles sont déjà prêtes.
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            _state.map { it.movies }.distinctUntilChanged { a, b -> a === b }.collect { precomputeShelves(it, true) }
+        }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            _state.map { it.series }.distinctUntilChanged { a, b -> a === b }.collect { precomputeShelves(it, false) }
         }
         viewModelScope.launch {
             store.favorites.collect { favs -> _state.update { it.copy(favorites = favs) } }

@@ -87,12 +87,24 @@ private var seriesShelves: Pair<VodCatalog, List<VodShelf>>? = null
  * Les rangées sont calculées une seule fois par catalogue et gardées en mémoire : en revenant d'une
  * fiche, l'écran se reconstruit sans refaire ces calculs (tris sur tout le catalogue).
  */
+private val shelvesLock = Any()
+
 private fun shelvesFor(catalog: VodCatalog, isMovies: Boolean): List<VodShelf> {
-    val cached = if (isMovies) moviesShelves else seriesShelves
-    if (cached != null && cached.first === catalog) return cached.second
-    val built = buildShelves(catalog)
-    if (isMovies) moviesShelves = catalog to built else seriesShelves = catalog to built
-    return built
+    synchronized(shelvesLock) {
+        val cached = if (isMovies) moviesShelves else seriesShelves
+        if (cached != null && cached.first === catalog) return cached.second
+        val built = buildShelves(catalog)
+        if (isMovies) moviesShelves = catalog to built else seriesShelves = catalog to built
+        return built
+    }
+}
+
+/**
+ * Calcule les rangées d'un catalogue en arrière-plan, avant l'ouverture de l'écran :
+ * à l'ouverture, elles sont déjà prêtes (le résultat est gardé pour ce catalogue précis).
+ */
+fun precomputeShelves(catalog: VodCatalog, isMovies: Boolean) {
+    if (catalog.items.isNotEmpty()) shelvesFor(catalog, isMovies)
 }
 
 private fun buildShelves(catalog: VodCatalog): List<VodShelf> {
