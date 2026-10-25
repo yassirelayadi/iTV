@@ -50,6 +50,11 @@ val ErrorColor = Color(0xFFFF453A)
 /** Bleu d'accent (bleu « Prime Video ») : sélection (onglets, menu latéral) et « i » du logo. */
 val Accent = Color(0xFF1A98FF)
 
+/** Verre : remplissage translucide bleuté, filet clair et remplissage au focus (cartes, lignes, champs). */
+val GlassFill = Color(0x1782BEFF)
+val GlassBorder = Color(0x2E96CDFF)
+val GlassFocus = Color(0x3DFFFFFF)
+
 /** Dégradé de l'accent : bleu clair, bleu Prime, bleu royal. */
 val AccentBrush = Brush.linearGradient(listOf(Color(0xFF7FDCFF), Color(0xFF1A98FF), Color(0xFF3D6BFF)))
 

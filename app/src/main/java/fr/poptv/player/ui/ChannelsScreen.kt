@@ -227,7 +227,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
             .padding(horizontal = ScreenPadding)
             .fillMaxWidth()
             .clip(RoundedCornerShape(if (LocalCompact.current) 18.dp else 26.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF2A3F6B), Color(0xFF1C1C1F))))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF1A5FB4), Color(0xFF0B1F3A))))
             .padding(horizontal = if (LocalCompact.current) 14.dp else 24.dp, vertical = if (LocalCompact.current) 10.dp else 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (LocalCompact.current) 14.dp else 22.dp),

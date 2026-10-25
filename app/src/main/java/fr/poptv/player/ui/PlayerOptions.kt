@@ -198,7 +198,7 @@ internal fun PlayerSidePanel(
         modifier = modifier
             .fillMaxHeight()
             .width(380.dp)
-            .background(Color(0xF5161618))
+            .background(Color(0xF505080D))
             .padding(horizontal = 22.dp, vertical = 30.dp),
     ) {
         LazyColumn(
@@ -270,7 +270,7 @@ internal fun NextEpisodeCard(
     Row(
         modifier = modifier
             .width(460.dp)
-            .background(Color(0xF01C1C1E), RoundedCornerShape(24.dp))
+            .background(Color(0xF0101A26), RoundedCornerShape(24.dp))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -310,7 +310,7 @@ internal fun NextEpisodeCard(
                 label.orEmpty(),
                 color = Color.White,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -329,14 +329,14 @@ private fun CardButton(text: String, primary: Boolean, onClick: () -> Unit, modi
         modifier = modifier,
         shape = RoundedCornerShape(50),
         focusScale = 1.08f,
-        idleColor = if (primary) Color(0xFFD1D1D6) else Color(0x40FFFFFF),
+        idleColor = if (primary) Color(0xFFE8EEF5) else Color(0x33FFFFFF),
         focusedColor = Color.White,
     ) { focused ->
         val color = if (focused || primary) Color.Black else Color.White
         Text(
             text,
             color = color,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp),
         )

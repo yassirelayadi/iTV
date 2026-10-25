@@ -368,7 +368,7 @@ fun VodPlayerScreen(
                 "Pause",
                 color = Color.White,
                 fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .background(Color(0x99000000), RoundedCornerShape(50))
@@ -388,7 +388,7 @@ fun VodPlayerScreen(
                     .height(3.dp)
                     .background(Color(0x40FFFFFF)),
             ) {
-                Box(modifier = Modifier.fillMaxWidth(restFraction).fillMaxHeight().background(Color.White))
+                Box(modifier = Modifier.fillMaxWidth(restFraction).fillMaxHeight().background(AccentBrush))
             }
         }
 
@@ -416,7 +416,7 @@ fun VodPlayerScreen(
                     playback.title,
                     color = Color.White,
                     fontSize = 26.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -463,7 +463,7 @@ fun VodPlayerScreen(
                             .clip(RoundedCornerShape(50))
                             .background(Color(0x40FFFFFF)),
                     ) {
-                        Box(modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Color.White))
+                        Box(modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(AccentBrush))
                     }
                     if (seeking) {
                         Box(

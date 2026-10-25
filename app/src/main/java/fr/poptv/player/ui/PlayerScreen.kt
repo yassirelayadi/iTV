@@ -292,7 +292,7 @@ fun PlayerScreen(
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(channel.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium)
+                        Text(channel.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
                         val nowSec = System.currentTimeMillis() / 1000
                         val current = epg?.now(nowSec)
                         val upcoming = epg?.next(nowSec)
@@ -314,7 +314,7 @@ fun PlayerScreen(
                                     modifier = Modifier
                                         .fillMaxWidth(current.progress(nowSec))
                                         .fillMaxHeight()
-                                        .background(Color.White),
+                                        .background(AccentBrush),
                                 )
                             }
                         }

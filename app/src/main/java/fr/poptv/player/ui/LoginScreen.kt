@@ -2,6 +2,9 @@ package fr.poptv.player.ui
 
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,10 +61,14 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
+                .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 16.dp)
                 .widthIn(max = 520.dp)
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(GlassFill)
+                .border(1.dp, GlassBorder, RoundedCornerShape(28.dp))
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 24.dp),
+                .padding(horizontal = 28.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

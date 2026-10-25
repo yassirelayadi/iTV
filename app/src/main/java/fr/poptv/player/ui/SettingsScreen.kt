@@ -3,6 +3,7 @@ package fr.poptv.player.ui
 import androidx.compose.foundation.layout.widthIn
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -159,7 +160,8 @@ private fun ProfileCard(account: AccountInfo?, loading: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Surface1)
+            .background(GlassFill)
+            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
             .padding(horizontal = 22.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -208,7 +210,7 @@ private fun SettingRow(
             modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(title, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            Text(title, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(subtitle, color = TextSecondary, fontSize = 14.sp)
         }
     }

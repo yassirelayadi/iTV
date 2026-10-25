@@ -61,8 +61,8 @@ fun FocusItem(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(20.dp),
     focusScale: Float = 1.06f,
-    idleColor: Color = Surface1,
-    focusedColor: Color = Surface3,
+    idleColor: Color = GlassFill,
+    focusedColor: Color = GlassFocus,
     focusRing: Boolean = false,
     ringColor: Color = Color(0xE6FFFFFF),
     onLongClick: (() -> Unit)? = null,
@@ -77,7 +77,7 @@ fun FocusItem(
         label = "focusScale",
     )
     val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(220), label = "focusColor")
-    val elevation by animateDpAsState(if (focused) 18.dp else if (glow) 12.dp else 0.dp, tween(220), label = "focusShadow")
+    val elevation by animateDpAsState(if (focused) 18.dp else if (glow) 5.dp else 0.dp, tween(220), label = "focusShadow")
 
     Box(
         modifier = modifier
@@ -86,10 +86,11 @@ fun FocusItem(
                 scaleX = scale
                 scaleY = scale
             }
-            .shadow(elevation, shape, clip = false, ambientColor = Accent, spotColor = Accent)
+            .shadow(elevation, shape, clip = false, ambientColor = if (glow && !focused) Accent else Color.Black, spotColor = if (glow && !focused) Accent else Color.Black)
             .clip(shape)
             .then(if (idleBrush != null && !focused) Modifier.background(idleBrush) else Modifier.background(color))
             .then(if (focusRing && focused) Modifier.border(2.dp, ringColor, shape) else Modifier)
+            .then(if (!focused && idleColor == GlassFill) Modifier.border(1.dp, GlassBorder, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
@@ -210,8 +211,8 @@ fun MinimalField(
         visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = Surface3,
-            unfocusedContainerColor = Surface1,
+            focusedContainerColor = Color(0x3396CDFF),
+            unfocusedContainerColor = GlassFill,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent,
@@ -222,7 +223,7 @@ fun MinimalField(
             focusedPlaceholderColor = TextSecondary,
             unfocusedPlaceholderColor = TextSecondary,
         ),
-        modifier = modifier,
+        modifier = modifier.border(1.dp, GlassBorder, shape),
     )
 }
 
