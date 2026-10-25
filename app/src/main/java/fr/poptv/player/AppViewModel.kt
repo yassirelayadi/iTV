@@ -16,6 +16,10 @@ import fr.poptv.player.data.Repository
 import fr.poptv.player.data.ResumeEntry
 import fr.poptv.player.data.Season
 import fr.poptv.player.data.Section
+import fr.poptv.player.data.TmdbClient
+import fr.poptv.player.data.TmdbMatcher
+import fr.poptv.player.data.TmdbPicks
+import fr.poptv.player.data.TmdbTrends
 import fr.poptv.player.data.Store
 import fr.poptv.player.data.VodCatalog
 import fr.poptv.player.data.VodItem
@@ -94,6 +98,12 @@ data class UiState(
     val account: AccountInfo? = null,
     val accountLoading: Boolean = false,
     val manageSection: Section? = null,
+    // TMDB : tendances et « à l'affiche »
+    val tmdbConfigured: Boolean = false,
+    val tmdbOpen: Boolean = false,
+    val tmdbBusy: Boolean = false,
+    val tmdbError: String? = null,
+    val picks: TmdbPicks = TmdbPicks(),
 )
 
 private fun VodCatalog.without(hidden: Set<String>): VodCatalog =
@@ -146,9 +156,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var m3uEpisodes: Map<String, List<Episode>> = emptyMap()
     private var m3uUrls: Map<String, String> = emptyMap()
     private var queue: List<VodPlayback> = emptyList()
+
+    // TMDB : la clé reste ici, en mémoire, et chiffrée sur disque ; elle n'entre jamais dans l'état affiché.
+    private var tmdbKeyValue: String? = null
+    private var trends: TmdbTrends? = null
+    private var picksJob: kotlinx.coroutines.Job? = null
     private var queueIndex = -1
 
     init {
+        viewModelScope.launch {
+            store.tmdbKey.collect { key ->
+                tmdbKeyValue = key
+                _state.update { it.copy(tmdbConfigured = key != null) }
+                if (key == null) {
+                    trends = null
+                    _state.update { it.copy(picks = TmdbPicks()) }
+                }
+            }
+        }
         viewModelScope.launch {
             store.favorites.collect { favs -> _state.update { it.copy(favorites = favs) } }
         }
@@ -205,6 +230,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     resume = it.resume,
                     recent = it.recent,
                     watched = it.watched,
+                    tmdbConfigured = it.tmdbConfigured,
                 )
             }
         }
@@ -298,7 +324,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectSection(section: Section) {
         _state.update { it.copy(section = section, selectedCategory = CAT_ALL, query = "", mediaError = null) }
-        if (section != Section.LIVE) loadMedia(section, force = false)
+        if (section != Section.LIVE) {
+            loadMedia(section, force = false)
+            ensureTmdb()
+        }
     }
 
     fun selectCategory(id: String) = _state.update { it.copy(selectedCategory = id) }
@@ -425,11 +454,77 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun setCatalog(section: Section, catalog: VodCatalog) = _state.update {
-        if (section == Section.MOVIES) {
-            it.copy(allMovies = catalog).refiltered()
-        } else {
-            it.copy(allSeries = catalog).refiltered()
+    private fun setCatalog(section: Section, catalog: VodCatalog) {
+        _state.update {
+            if (section == Section.MOVIES) {
+                it.copy(allMovies = catalog).refiltered()
+            } else {
+                it.copy(allSeries = catalog).refiltered()
+            }
+        }
+        recomputePicks()
+    }
+
+    // ---- TMDB : Top 10 et « À l'affiche » ----
+
+    fun openTmdb() = _state.update { it.copy(tmdbOpen = true, tmdbError = null) }
+
+    fun closeTmdb() = _state.update { it.copy(tmdbOpen = false, tmdbError = null, tmdbBusy = false) }
+
+    /** Enregistre (après vérification) ou efface la clé TMDB. Une clé vide supprime la configuration. */
+    fun saveTmdbKey(raw: String) {
+        val key = raw.trim().trim('"', '\'')
+        viewModelScope.launch {
+            if (key.isEmpty()) {
+                store.saveTmdbKey(null)
+                _state.update { it.copy(tmdbOpen = false, tmdbError = null, picks = TmdbPicks()) }
+                return@launch
+            }
+            _state.update { it.copy(tmdbBusy = true, tmdbError = null) }
+            try {
+                val t = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TmdbClient.trends(key) }
+                store.saveTmdbKey(key)
+                trends = t
+                _state.update { it.copy(tmdbBusy = false, tmdbOpen = false, tmdbError = null) }
+                recomputePicks()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(tmdbBusy = false, tmdbError = friendly(e)) }
+            }
+        }
+    }
+
+    /** Charge les tendances si besoin (au plus toutes les 6 heures), puis les rapproche du catalogue. */
+    private fun ensureTmdb() {
+        val key = tmdbKeyValue ?: return
+        val known = trends
+        if (known != null && System.currentTimeMillis() - known.fetchedAt < 6 * 3_600_000L) {
+            recomputePicks()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                trends = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TmdbClient.trends(key) }
+                recomputePicks()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Pas de tendances pour cette fois : les rangées habituelles restent affichées.
+            }
+        }
+    }
+
+    private fun recomputePicks() {
+        val t = trends ?: return
+        picksJob?.cancel()
+        picksJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val s = _state.value
+            val movies = s.allMovies.items.filter { it.categoryId !in s.hiddenMovies }
+            val series = s.allSeries.items.filter { it.categoryId !in s.hiddenSeries }
+            if (movies.isEmpty() && series.isEmpty()) return@launch
+            val picks = TmdbMatcher.match(t, movies, series)
+            _state.update { it.copy(picks = picks) }
         }
     }
 

@@ -42,6 +42,7 @@ fun SettingsScreen(
     onOpenCategories: (Section) -> Unit,
     onRefresh: () -> Unit,
     onAccount: () -> Unit,
+    onTmdb: () -> Unit,
     onLogout: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -91,6 +92,14 @@ fun SettingsScreen(
                         summary(state.allSeries.categories.size, state.hiddenSeries.size)
                     },
                     onClick = { onOpenCategories(Section.SERIES) },
+                )
+            }
+
+            if (state.vodSupported) {
+                SettingRow(
+                    title = "Tendances et à l'affiche (TMDB)",
+                    subtitle = if (state.tmdbConfigured) "Activé · clé enregistrée" else "Top 10 et bandeau : ajoute ta clé TMDB",
+                    onClick = onTmdb,
                 )
             }
 

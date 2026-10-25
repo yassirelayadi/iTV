@@ -30,6 +30,21 @@ class Store(private val context: Context) {
             ?.let { runCatching { json.decodeFromString(Credentials.serializer(), it) }.getOrNull() }
     }
 
+    // ---- Clé TMDB (chiffrée comme les identifiants) ----
+
+    private val keyTmdb = stringPreferencesKey("tmdb_key_enc")
+
+    val tmdbKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[keyTmdb]?.let { SecretBox.decrypt(it) }?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun saveTmdbKey(key: String?) {
+        context.dataStore.edit { prefs ->
+            val encrypted = key?.trim()?.takeIf { it.isNotEmpty() }?.let { SecretBox.encrypt(it) }
+            if (encrypted == null) prefs.remove(keyTmdb) else prefs[keyTmdb] = encrypted
+        }
+    }
+
     val favorites: Flow<Set<String>> = context.dataStore.data.map { it[keyFavorites].orEmpty() }
 
     val lastChannel: Flow<String?> = context.dataStore.data.map { it[keyLast] }

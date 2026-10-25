@@ -1,6 +1,19 @@
 package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.delay
+import fr.poptv.player.data.TmdbPick
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.Row
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -128,6 +141,10 @@ fun MediaScreen(
     // Accueil : « Ajouts récents » et « Les mieux notés », puis une rangée par catégorie.
     val shelves = remember(catalog) { shelvesFor(catalog, isMovies) }
 
+    // Tendances TMDB retrouvées dans le catalogue : bandeau « À l'affiche » (films) et Top 10.
+    val featured = if (isMovies) state.picks.featured else emptyList()
+    val top = if (isMovies) state.picks.topMovies else state.picks.topSeries
+
     val query = state.query.trim()
     val gridMode = query.isNotEmpty() || state.selectedCategory != CAT_ALL || shelves.isEmpty()
 
@@ -212,9 +229,25 @@ fun MediaScreen(
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                if (featured.isNotEmpty()) {
+                    item(key = "featured") {
+                        FeaturedHero(featured, onOpen, onFocusInfo)
+                    }
+                }
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
                         ResumeRow(resume, onResume, onFocusInfo)
+                    }
+                }
+                if (top.size >= 3) {
+                    item(key = "top10") {
+                        TopRow(
+                            title = if (isMovies) "Top 10 des films cette semaine" else "Top 10 des séries cette semaine",
+                            picks = top,
+                            categoryNames = categoryNames,
+                            onOpen = onOpen,
+                            onFocusInfo = onFocusInfo,
+                        )
                     }
                 }
                 items(shelves, key = { it.id }) { shelf ->
@@ -224,6 +257,155 @@ fun MediaScreen(
                         onOpen = onOpen,
                         onSeeAll = { onSelectCategory(shelf.id) },
                         onFocusInfo = onFocusInfo,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Bandeau « À l'affiche » : grande image TMDB d'un film du catalogue, qui change toutes les 8 secondes. */
+@Composable
+private fun FeaturedHero(
+    featured: List<TmdbPick>,
+    onOpen: (VodItem) -> Unit,
+    onFocusInfo: (HeroInfo) -> Unit,
+) {
+    var index by remember { mutableIntStateOf(0) }
+    var paused by remember { mutableStateOf(false) }
+    LaunchedEffect(featured.size, paused) {
+        while (featured.size > 1 && !paused) {
+            delay(8_000)
+            index = (index + 1) % featured.size
+        }
+    }
+    val pick = featured[index.coerceIn(0, featured.lastIndex)]
+    val compact = LocalCompact.current
+    val meta = listOfNotNull(pick.item.year, ratingLabel(pick.item.rating)?.let { "★ $it" }).joinToString("  ·  ")
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = ScreenPadding)
+            .fillMaxWidth()
+            .height(if (compact) 170.dp else 300.dp)
+            .clip(RoundedCornerShape(if (compact) 18.dp else 28.dp))
+            .background(Surface1),
+    ) {
+        Crossfade(targetState = pick.backdrop, label = "featuredImage") { image ->
+            AsyncImage(
+                model = image,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.horizontalGradient(listOf(Color(0xE6161618), Color(0x66161618), Color(0x00161618))),
+            ),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = if (compact) 16.dp else 34.dp)
+                .fillMaxWidth(0.58f),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+        ) {
+            Text(
+                "À L'AFFICHE",
+                color = Color.White,
+                fontSize = if (compact) 9.sp else 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp,
+                modifier = Modifier
+                    .background(Color(0xFFFF3B30), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+            Text(
+                pick.item.name,
+                color = TextPrimary,
+                fontSize = if (compact) 20.sp else 36.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 15.sp)
+            if (!compact && pick.overview != null) {
+                Text(
+                    pick.overview,
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            PrimaryButton(
+                text = "Voir la fiche",
+                onClick = { onOpen(pick.item) },
+                icon = Icons.Filled.PlayArrow,
+                modifier = Modifier.onFocusChanged {
+                    paused = it.hasFocus
+                    if (it.hasFocus) onFocusInfo(HeroInfo(pick.item.name, meta, pick.overview, pick.item.poster))
+                },
+            )
+        }
+        if (featured.size > 1) {
+            Row(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                featured.indices.forEach { i ->
+                    Box(
+                        modifier = Modifier
+                            .height(6.dp)
+                            .width(if (i == index) 20.dp else 6.dp)
+                            .background(if (i == index) Color.White else Color(0x66FFFFFF), RoundedCornerShape(3.dp)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Rangée « Top 10 » façon Netflix : gros numéro contourné devant chaque affiche. */
+@Composable
+private fun TopRow(
+    title: String,
+    picks: List<TmdbPick>,
+    categoryNames: Map<String, String>,
+    onOpen: (VodItem) -> Unit,
+    onFocusInfo: (HeroInfo) -> Unit,
+) {
+    val compact = LocalCompact.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        ShelfTitle(title)
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
+        ) {
+            itemsIndexed(picks, key = { _, p -> p.item.id }) { i, pick ->
+                Box {
+                    Text(
+                        "${i + 1}",
+                        style = TextStyle(
+                            fontSize = if (compact) 64.sp else 120.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xB3FFFFFF),
+                            drawStyle = Stroke(width = 5f),
+                            letterSpacing = (-4).sp,
+                        ),
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
+                    PosterTile(
+                        title = pick.item.name,
+                        poster = pick.item.poster,
+                        onClick = { onOpen(pick.item) },
+                        rating = ratingLabel(pick.item.rating),
+                        onFocus = { onFocusInfo(pick.item.hero(categoryNames[pick.item.categoryId])) },
+                        modifier = Modifier
+                            .padding(start = if (i == 9) (if (compact) 56.dp else 104.dp) else (if (compact) 34.dp else 64.dp))
+                            .width(posterWidth()),
                     )
                 }
             }

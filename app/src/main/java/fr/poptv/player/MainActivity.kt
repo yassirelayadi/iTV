@@ -119,6 +119,14 @@ private fun App(viewModel: AppViewModel) {
             CircularProgressIndicator()
         }
 
+        state.tmdbOpen -> fr.poptv.player.ui.TmdbKeyScreen(
+            configured = state.tmdbConfigured,
+            busy = state.tmdbBusy,
+            error = state.tmdbError,
+            onSave = viewModel::saveTmdbKey,
+            onBack = viewModel::closeTmdb,
+        )
+
         manageSection != null -> CategoriesScreen(
             state = state,
             section = manageSection,
@@ -134,6 +142,7 @@ private fun App(viewModel: AppViewModel) {
                 viewModel.closeSettings()
             },
             onAccount = viewModel::showLogin,
+            onTmdb = viewModel::openTmdb,
             onLogout = viewModel::logout,
             onBack = viewModel::closeSettings,
         )
