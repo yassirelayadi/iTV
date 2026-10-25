@@ -11,6 +11,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
@@ -31,7 +38,7 @@ import androidx.compose.ui.graphics.Color
 
 // Fond : dégradé graphite, plus clair en haut. Il prend une teinte de l'affiche sélectionnée.
 val BgTop = Color(0xFF3A3A3C)
-val BgBottom = Color(0xFF161618)
+val BgBottom = Color(0xFF000000)
 val Bg = BgBottom
 val Surface1 = Color(0xFF2A2A2D)
 val Surface2 = Color(0xFF4A4A4E)
@@ -133,7 +140,29 @@ private fun tintedTop(tint: Color?): Color {
 @Composable
 fun Modifier.appBackground(tint: Color? = null): Modifier {
     val top by animateColorAsState(tintedTop(tint), tween(700), label = "bgTop")
-    return background(Brush.verticalGradient(listOf(top, BgBottom)))
+    val noise = remember { ShaderBrush(ImageShader(noiseBitmap, TileMode.Repeated, TileMode.Repeated)) }
+    return background(
+        Brush.verticalGradient(
+            0f to top,
+            0.5f to lerp(top, BgBottom, 0.82f),
+            1f to BgBottom,
+        )
+    ).drawBehind {
+        // Grain très léger (mode « Incrustation ») : casse les bandes visibles des dégradés sur les téléviseurs.
+        // Il suit la luminosité du fond, donc le noir pur reste parfaitement noir.
+        drawRect(noise, blendMode = BlendMode.Overlay)
+    }
+}
+
+/** Petite texture de grain gris moyen, répétée sur tout l'écran. */
+private val noiseBitmap: ImageBitmap by lazy {
+    val size = 128
+    val random = kotlin.random.Random(7)
+    val pixels = IntArray(size * size) {
+        val g = 122 + random.nextInt(13)
+        (0xFF shl 24) or (g shl 16) or (g shl 8) or g
+    }
+    android.graphics.Bitmap.createBitmap(pixels, size, size, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
 }
 
 /** Courbe douce des animations : démarrage vif, arrivée très lente (proche de celle d'Apple). */
