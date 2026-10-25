@@ -2,6 +2,8 @@ package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import fr.poptv.player.data.TmdbPick
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -174,6 +176,7 @@ fun MediaScreen(
     val tint = rememberPosterTint(hero?.poster)
 
     // Le titre se masque quand on descend dans la liste.
+    val scope = rememberCoroutineScope()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     AppShell(
@@ -231,7 +234,7 @@ fun MediaScreen(
             ) {
                 if (featured.isNotEmpty()) {
                     item(key = "featured") {
-                        FeaturedHero(featured, onOpen, onFocusInfo)
+                        FeaturedHero(featured, onOpen, onFocusInfo, onFocused = { scope.launch { listState.animateScrollToItem(0) } })
                     }
                 }
                 if (resume.isNotEmpty()) {
@@ -270,6 +273,7 @@ private fun FeaturedHero(
     featured: List<TmdbPick>,
     onOpen: (VodItem) -> Unit,
     onFocusInfo: (HeroInfo) -> Unit,
+    onFocused: () -> Unit,
 ) {
     var index by remember { mutableIntStateOf(0) }
     var paused by remember { mutableStateOf(false) }
@@ -346,6 +350,7 @@ private fun FeaturedHero(
                 icon = Icons.Filled.PlayArrow,
                 modifier = Modifier.onFocusChanged {
                     paused = it.hasFocus
+                    if (it.hasFocus) onFocused()
                     if (it.hasFocus) onFocusInfo(HeroInfo(pick.item.name, meta, pick.overview, pick.item.poster))
                 },
             )
