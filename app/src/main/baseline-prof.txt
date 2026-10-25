@@ -1,0 +1,10 @@
+HSPLfr/poptv/player/**;->**(**)**
+HSPLfr/poptv/player/ui/**;->**(**)**
+Lfr/poptv/player/**;
+HSPLandroidx/compose/foundation/lazy/**;->**(**)**
+HSPLandroidx/compose/foundation/**;->**(**)**
+HSPLandroidx/compose/animation/**;->**(**)**
+HSPLandroidx/compose/runtime/**;->**(**)**
+HSPLandroidx/compose/ui/**;->**(**)**
+HSPLandroidx/compose/material3/**;->**(**)**
+HSPLcoil/**;->**(**)**

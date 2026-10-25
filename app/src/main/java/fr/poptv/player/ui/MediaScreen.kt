@@ -168,6 +168,16 @@ fun MediaScreen(
 
     // Accueil : « Ajouts récents » et « Les mieux notés », puis une rangée par catégorie.
     val shelves = remember(catalog) { shelvesFor(catalog, isMovies) }
+    // Préchargement des affiches des premières rangées : elles sont déjà en cache quand on défile.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(shelves) {
+        val loader = coil.Coil.imageLoader(context)
+        shelves.take(5).flatMap { it.items.take(12) }.mapNotNull { it.poster }.distinct().forEach { url ->
+            loader.enqueue(
+                coil.request.ImageRequest.Builder(context).data(url).size(300, 450).build(),
+            )
+        }
+    }
 
     // Tendances TMDB retrouvées dans le catalogue : bandeau « À l'affiche » (films) et Top 10.
     val featured = if (isMovies) state.picks.featured else emptyList()
@@ -373,7 +383,7 @@ private fun FeaturedBackdrop(pick: TmdbPick, listState: LazyListState) {
     ) {
         Crossfade(targetState = pick.backdrop, animationSpec = tween(700), label = "featuredImage") { image ->
             AsyncImage(
-                model = image,
+                model = rememberImage(image, 1280, 720),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
