@@ -16,6 +16,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Row
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -202,6 +206,16 @@ fun MediaScreen(
 
     // Le titre se masque quand on descend dans la liste.
     val scope = rememberCoroutineScope()
+
+    // Bandeau « À l'affiche » : image affichée (change toutes les 8 s, sauf quand le bouton a le focus).
+    var featIndex by remember { mutableIntStateOf(0) }
+    var featPaused by remember { mutableStateOf(false) }
+    LaunchedEffect(featured.size, featPaused) {
+        while (featured.size > 1 && !featPaused) {
+            delay(8_000)
+            featIndex = (featIndex + 1) % featured.size
+        }
+    }
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     androidx.compose.runtime.CompositionLocalProvider(LocalVodFavs provides vodFavs) {
@@ -212,6 +226,11 @@ fun MediaScreen(
         onSettings = onSettings,
         modifier = Modifier.appBackground(tint),
         headerVisible = gridMode || !scrolled || catalog.items.isEmpty(),
+        backdrop = if (featured.isNotEmpty() && !gridMode && catalog.items.isNotEmpty()) {
+            { FeaturedBackdrop(featured[featIndex.coerceIn(0, featured.lastIndex)], listState) }
+        } else {
+            null
+        },
     ) {
         MediaTabs(catalog.categories, state.selectedCategory, onSelectCategory)
 
@@ -261,7 +280,15 @@ fun MediaScreen(
             ) {
                 if (featured.isNotEmpty()) {
                     item(key = "featured") {
-                        FeaturedHero(featured, onOpen, onFocusInfo, onFocused = { scope.launch { listState.animateScrollToItem(0) } })
+                        FeaturedHero(
+                            pick = featured[featIndex.coerceIn(0, featured.lastIndex)],
+                            count = featured.size,
+                            index = featIndex,
+                            onOpen = onOpen,
+                            onFocusInfo = onFocusInfo,
+                            onFocused = { scope.launch { listState.animateScrollToItem(0) } },
+                            onPausedChange = { featPaused = it },
+                        )
                     }
                 }
                 if (resume.isNotEmpty()) {
@@ -306,35 +333,29 @@ fun MediaScreen(
     }
 }
 
-/** Bandeau « À l'affiche » : grande image TMDB d'un film du catalogue, qui change toutes les 8 secondes. */
+/** Image du bandeau « À l'affiche » : plein écran derrière l'en-tête, fondue vers le bas, qui défile avec la liste. */
 @Composable
-private fun FeaturedHero(
-    featured: List<TmdbPick>,
-    onOpen: (VodItem) -> Unit,
-    onFocusInfo: (HeroInfo) -> Unit,
-    onFocused: () -> Unit,
-) {
-    var index by remember { mutableIntStateOf(0) }
-    var paused by remember { mutableStateOf(false) }
-    LaunchedEffect(featured.size, paused) {
-        while (featured.size > 1 && !paused) {
-            delay(8_000)
-            index = (index + 1) % featured.size
-        }
-    }
-    val pick = featured[index.coerceIn(0, featured.lastIndex)]
+private fun FeaturedBackdrop(pick: TmdbPick, listState: LazyListState) {
     val compact = LocalCompact.current
-    val meta = listOfNotNull(pick.item.year, ratingLabel(pick.item.rating)?.let { "★ $it" }).joinToString("  ·  ")
-
     Box(
         modifier = Modifier
-            .padding(horizontal = ScreenPadding)
             .fillMaxWidth()
-            .height(if (compact) 170.dp else 300.dp)
-            .clip(RoundedCornerShape(if (compact) 18.dp else 28.dp))
-            .background(Surface1),
+            .height(if (compact) 300.dp else 470.dp)
+            .graphicsLayer {
+                // Quitte l'écran avec le défilement de la liste.
+                translationY = -(if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else 100_000f)
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+            }
+            .drawWithContent {
+                drawContent()
+                // Fondu vers le fond de l'écran sur le bas de l'image.
+                drawRect(
+                    Brush.verticalGradient(0f to Color.Black, 0.55f to Color.Black, 1f to Color.Transparent),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+            },
     ) {
-        Crossfade(targetState = pick.backdrop, label = "featuredImage") { image ->
+        Crossfade(targetState = pick.backdrop, animationSpec = tween(700), label = "featuredImage") { image ->
             AsyncImage(
                 model = image,
                 contentDescription = null,
@@ -342,43 +363,66 @@ private fun FeaturedHero(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+        // Voile sombre à gauche pour la lisibilité du titre.
         Box(
             modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(listOf(Color(0xE605080D), Color(0x6605080D), Color(0x0005080D))),
+                Brush.horizontalGradient(listOf(Color(0xE605080D), Color(0x7305080D), Color(0x1A05080D))),
             ),
         )
+    }
+}
+
+/** Texte et boutons du bandeau « À l'affiche », posés sur l'image plein écran. */
+@Composable
+private fun FeaturedHero(
+    pick: TmdbPick,
+    count: Int,
+    index: Int,
+    onOpen: (VodItem) -> Unit,
+    onFocusInfo: (HeroInfo) -> Unit,
+    onFocused: () -> Unit,
+    onPausedChange: (Boolean) -> Unit,
+) {
+    val compact = LocalCompact.current
+    val meta = listOfNotNull(pick.item.year, ratingLabel(pick.item.rating)?.let { "★ $it" }).joinToString("  ·  ")
+
+    Box(modifier = Modifier.fillMaxWidth().height(if (compact) 150.dp else 280.dp)) {
         Column(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = if (compact) 16.dp else 34.dp)
+                .align(Alignment.BottomStart)
+                .padding(start = ScreenPadding, bottom = 6.dp)
                 .fillMaxWidth(0.58f),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 10.dp),
         ) {
             Text(
                 "À L'AFFICHE",
                 color = Color.White,
                 fontSize = if (compact) 9.sp else 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.6.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp,
                 modifier = Modifier
-                    .background(Color(0xFFFF3B30), RoundedCornerShape(50))
-                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                    .clip(RoundedCornerShape(50))
+                    .background(GlassFill)
+                    .border(1.dp, GlassBorder, RoundedCornerShape(50))
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
             )
             Text(
                 pick.item.name,
                 color = TextPrimary,
-                fontSize = if (compact) 20.sp else 36.sp,
+                fontSize = if (compact) 22.sp else 44.sp,
+                lineHeight = if (compact) 24.sp else 46.sp,
                 fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-1.5).sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 15.sp)
+            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 16.sp, fontWeight = FontWeight.Medium)
             if (!compact && pick.overview != null) {
                 Text(
                     pick.overview,
                     color = TextSecondary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -388,23 +432,25 @@ private fun FeaturedHero(
                 onClick = { onOpen(pick.item) },
                 icon = Icons.Filled.PlayArrow,
                 modifier = Modifier.onFocusChanged {
-                    paused = it.hasFocus
-                    if (it.hasFocus) onFocused()
-                    if (it.hasFocus) onFocusInfo(HeroInfo(pick.item.name, meta, pick.overview, pick.item.poster))
+                    onPausedChange(it.hasFocus)
+                    if (it.hasFocus) {
+                        onFocused()
+                        onFocusInfo(HeroInfo(pick.item.name, meta, pick.overview, pick.item.poster))
+                    }
                 },
             )
         }
-        if (featured.size > 1) {
+        if (count > 1) {
             Row(
-                modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = ScreenPadding, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                featured.indices.forEach { i ->
+                for (i in 0 until count) {
                     Box(
                         modifier = Modifier
                             .height(6.dp)
-                            .width(if (i == index) 20.dp else 6.dp)
-                            .background(if (i == index) Color.White else Color(0x66FFFFFF), RoundedCornerShape(3.dp)),
+                            .width(if (i == index) 24.dp else 6.dp)
+                            .background(if (i == index) AccentBrush else Brush.linearGradient(listOf(Color(0x66FFFFFF), Color(0x66FFFFFF))), RoundedCornerShape(3.dp)),
                     )
                 }
             }

@@ -60,6 +60,7 @@ fun AppShell(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
     headerVisible: Boolean = true,
+    backdrop: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var searchOpen by remember(state.section) { mutableStateOf(false) }
@@ -71,16 +72,20 @@ fun AppShell(
             onSearch = { searchOpen = true },
             onSettings = onSettings,
         )
-        Column(modifier = Modifier.weight(1f).fillMaxHeight().appear()) {
-            AnimatedVisibility(visible = headerVisible) {
-                ScreenHeader(
-                    state = state,
-                    showSearch = searchOpen || state.query.isNotEmpty(),
-                    focusSearch = searchOpen,
-                    onQuery = onQuery,
-                )
+        // Le fond optionnel (image du bandeau) passe derrière l'en-tête et le contenu.
+        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f).fillMaxHeight().appear()) {
+            backdrop?.invoke(this)
+            Column(modifier = Modifier.fillMaxSize()) {
+                AnimatedVisibility(visible = headerVisible) {
+                    ScreenHeader(
+                        state = state,
+                        showSearch = searchOpen || state.query.isNotEmpty(),
+                        focusSearch = searchOpen,
+                        onQuery = onQuery,
+                    )
+                }
+                content()
             }
-            content()
         }
     }
 }

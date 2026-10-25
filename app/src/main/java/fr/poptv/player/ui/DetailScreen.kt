@@ -1,6 +1,7 @@
 package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -124,12 +125,12 @@ fun DetailScreen(
         if (focusReady) runCatching { focus.requestFocus() }
     }
 
-    val meta = listOfNotNull(
+    val metaParts = listOfNotNull(
         info.year ?: item.year,
         prettyDuration(info.duration),
         info.genre,
         cleanRating(info.rating ?: item.rating)?.let { "★ $it" },
-    ).joinToString("  ·  ")
+    )
     val plot = info.plot ?: item.plot
 
     // Fond : dégradé graphite teinté par la couleur de l'affiche, avec l'affiche très estompée par-dessus.
@@ -180,14 +181,33 @@ fun DetailScreen(
             ) {
                 Text(
                     item.name,
-                    fontSize = if (compact) 24.sp else 32.sp,
+                    fontSize = if (compact) 24.sp else 34.sp,
                     fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-1).sp,
                     color = TextPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (meta.isNotEmpty()) {
-                    Text(meta, color = TextSecondary, fontSize = 15.sp)
+                if (metaParts.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        metaParts.forEach { part ->
+                            Text(
+                                part,
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(GlassFill)
+                                    .border(1.dp, GlassBorder, RoundedCornerShape(50))
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                 }
 
                 if (!detail.isSeries) {
@@ -317,9 +337,20 @@ fun DetailScreen(
                 .fillMaxSize()
                 .padding(horizontal = if (compact) 28.dp else 56.dp, vertical = if (compact) 18.dp else 36.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 22.dp else 40.dp),
+            verticalAlignment = if (detail.isSeries) Alignment.Top else Alignment.Bottom,
         ) {
             poster()
-            info(Modifier.weight(1f))
+            // Panneau de verre : les informations sont lisibles sur n'importe quelle image de fond.
+            val panelShape = RoundedCornerShape(if (compact) 20.dp else 30.dp)
+            info(
+                Modifier
+                    .weight(1f)
+                    .then(if (detail.isSeries) Modifier.fillMaxHeight() else Modifier)
+                    .clip(panelShape)
+                    .background(GlassFill)
+                    .border(1.dp, GlassBorder, panelShape)
+                    .padding(horizontal = if (compact) 18.dp else 30.dp, vertical = if (compact) 14.dp else 26.dp),
+            )
         }
     }
 }
@@ -337,7 +368,7 @@ private fun EpisodePanel(episode: Episode, fallbackPlot: String?) {
             episode.title,
             color = TextPrimary,
             fontSize = 22.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
