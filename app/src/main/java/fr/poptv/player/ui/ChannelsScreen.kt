@@ -251,7 +251,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
                     channel.name.take(2).uppercase(),
                     color = TextPrimary,
                     fontSize = 28.sp,
-                    fontWeight = FontWeight.Light,
+                    fontWeight = FontWeight.ExtraBold,
                 )
             }
         }
@@ -267,7 +267,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
                     channel.name,
                     color = TextPrimary,
                     fontSize = if (LocalCompact.current) 18.sp else 28.sp,
-                    fontWeight = FontWeight.Light,
+                    fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
@@ -398,7 +398,7 @@ private fun ChannelTile(
                         channel.name.take(2).uppercase(),
                         color = TextSecondary,
                         fontSize = 28.sp,
-                        fontWeight = FontWeight.Light,
+                        fontWeight = FontWeight.ExtraBold,
                     )
                 }
             }

@@ -344,7 +344,7 @@ private fun FeaturedHero(
         }
         Box(
             modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(listOf(Color(0xE6161618), Color(0x66161618), Color(0x00161618))),
+                Brush.horizontalGradient(listOf(Color(0xE605080D), Color(0x6605080D), Color(0x0005080D))),
             ),
         )
         Column(
@@ -368,7 +368,7 @@ private fun FeaturedHero(
                 pick.item.name,
                 color = TextPrimary,
                 fontSize = if (compact) 20.sp else 36.sp,
-                fontWeight = FontWeight.Light,
+                fontWeight = FontWeight.ExtraBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -478,7 +478,7 @@ private fun ShelfTitle(text: String) {
     Text(
         text,
         fontSize = 22.sp,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Bold,
         color = TextPrimary,
         modifier = Modifier.padding(horizontal = ScreenPadding),
     )
@@ -621,7 +621,7 @@ private fun PosterTile(
                     title.take(2).uppercase(),
                     color = TextSecondary,
                     fontSize = 30.sp,
-                    fontWeight = FontWeight.Light,
+                    fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.align(Alignment.Center),
                 )
             }

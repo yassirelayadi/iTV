@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -63,8 +64,10 @@ fun FocusItem(
     idleColor: Color = Surface1,
     focusedColor: Color = Surface3,
     focusRing: Boolean = false,
-    ringColor: Color = Accent,
+    ringColor: Color = Color(0xE6FFFFFF),
     onLongClick: (() -> Unit)? = null,
+    idleBrush: Brush? = null,
+    glow: Boolean = false,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -74,7 +77,7 @@ fun FocusItem(
         label = "focusScale",
     )
     val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(220), label = "focusColor")
-    val elevation by animateDpAsState(if (focused) 18.dp else 0.dp, tween(220), label = "focusShadow")
+    val elevation by animateDpAsState(if (focused) 18.dp else if (glow) 12.dp else 0.dp, tween(220), label = "focusShadow")
 
     Box(
         modifier = modifier
@@ -83,10 +86,10 @@ fun FocusItem(
                 scaleX = scale
                 scaleY = scale
             }
-            .shadow(elevation, shape, clip = false)
+            .shadow(elevation, shape, clip = false, ambientColor = Accent, spotColor = Accent)
             .clip(shape)
-            .background(color)
-            .then(if (focusRing && focused) Modifier.border(3.dp, ringColor, shape) else Modifier)
+            .then(if (idleBrush != null && !focused) Modifier.background(idleBrush) else Modifier.background(color))
+            .then(if (focusRing && focused) Modifier.border(2.dp, ringColor, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
@@ -125,7 +128,7 @@ fun Pill(
             Text(
                 text,
                 color = color,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -166,7 +169,7 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
         modifier = modifier,
         shape = RoundedCornerShape(50),
         focusScale = 1.08f,
-        idleColor = Color(0xFFD1D1D6),
+        idleColor = Color(0xFFE8EEF5),
         focusedColor = Color.White,
     ) {
         Row(
@@ -175,7 +178,7 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (icon != null) Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(24.dp))
-            Text(text, color = Color.Black, fontWeight = FontWeight.Medium)
+            Text(text, color = Color.Black, fontWeight = FontWeight.Bold)
         }
     }
 }

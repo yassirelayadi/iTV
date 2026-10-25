@@ -181,7 +181,7 @@ fun DetailScreen(
                 Text(
                     item.name,
                     fontSize = if (compact) 24.sp else 32.sp,
-                    fontWeight = FontWeight.Light,
+                    fontWeight = FontWeight.ExtraBold,
                     color = TextPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -400,7 +400,7 @@ private fun EpisodeTile(
                 "${episode.number}",
                 color = if (episode.image != null) Color.White else TextSecondary,
                 fontSize = if (episode.image != null) 15.sp else 34.sp,
-                fontWeight = if (episode.image != null) FontWeight.SemiBold else FontWeight.Light,
+                fontWeight = if (episode.image != null) FontWeight.SemiBold else FontWeight.Bold,
                 modifier = if (episode.image != null) {
                     Modifier
                         .align(Alignment.BottomStart)

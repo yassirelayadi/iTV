@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
@@ -119,7 +120,7 @@ private fun ScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 14.dp),
     ) {
-        Text(title, fontSize = if (compact) 24.sp else 34.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+        Text(title, fontSize = if (compact) 24.sp else 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, color = TextPrimary)
         Spacer(Modifier.weight(1f))
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
@@ -150,7 +151,11 @@ private fun SideRail(
         modifier = Modifier
             .width(if (compact) 58.dp else 80.dp)
             .fillMaxHeight()
-            .background(Color(0x40000000))
+            .background(Color(0xC704080E))
+            .drawBehind {
+                // Filet fin à droite du menu
+                drawRect(Color(0x2496CDFF), topLeft = androidx.compose.ui.geometry.Offset(size.width - 1f, 0f), size = androidx.compose.ui.geometry.Size(1f, size.height))
+            }
             .padding(vertical = if (compact) 12.dp else 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
@@ -178,6 +183,8 @@ private fun RailButton(icon: ImageVector, label: String, selected: Boolean, onCl
         focusScale = 1.1f,
         idleColor = if (selected) Accent else Color.Transparent,
         focusedColor = if (selected) Accent else Color.White,
+        idleBrush = if (selected) AccentBrush else null,
+        glow = selected,
         focusRing = selected,
         ringColor = Color.White,
     ) { focused ->

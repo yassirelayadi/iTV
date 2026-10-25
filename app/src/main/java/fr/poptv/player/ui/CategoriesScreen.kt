@@ -104,7 +104,7 @@ fun CategoriesScreen(
             ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title, fontSize = 32.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+        Text(title, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
         Text("$visibleCount affichées sur ${categories.size}", color = TextSecondary)
 
         FlowRow(

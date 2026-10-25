@@ -51,7 +51,7 @@ fun TmdbKeyScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Tendances et à l'affiche", fontSize = 30.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+            Text("Tendances et à l'affiche", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
             Text(
                 "Crée un compte gratuit sur themoviedb.org, puis ouvre Paramètres → API et copie ta clé " +
                     "(ou le long jeton qui commence par « eyJ »). Colle-la ci-dessous : elle est vérifiée, " +

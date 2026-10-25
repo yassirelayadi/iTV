@@ -63,7 +63,7 @@ fun SettingsScreen(
                 .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Réglages", fontSize = 40.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+            Text("Réglages", fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
             Spacer(Modifier.height(8.dp))
 
             ProfileCard(state.account, state.accountLoading)

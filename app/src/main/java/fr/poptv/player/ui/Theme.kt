@@ -37,18 +37,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 // Fond : dégradé graphite, plus clair en haut. Il prend une teinte de l'affiche sélectionnée.
-val BgTop = Color(0xFF3A3A3C)
+val BgTop = Color(0xFF16222F)
 val BgBottom = Color(0xFF000000)
 val Bg = BgBottom
-val Surface1 = Color(0xFF2A2A2D)
-val Surface2 = Color(0xFF4A4A4E)
-val Surface3 = Color(0xFF636368)
-val TextPrimary = Color(0xFFF5F5F7)
-val TextSecondary = Color(0xFFA1A1A6)
+val Surface1 = Color(0xFF17212D)
+val Surface2 = Color(0xFF263444)
+val Surface3 = Color(0xFF38485B)
+val TextPrimary = Color(0xFFF5F7FA)
+val TextSecondary = Color(0xFFA7B4C4)
 val ErrorColor = Color(0xFFFF453A)
 
-/** Bleu d'accent : sélection (onglets, anneau de focus, menu latéral) et « i » du logo. */
-val Accent = Color(0xFF0A84FF)
+/** Bleu d'accent (bleu « Prime Video ») : sélection (onglets, menu latéral) et « i » du logo. */
+val Accent = Color(0xFF1A98FF)
+
+/** Dégradé de l'accent : bleu clair, bleu Prime, bleu royal. */
+val AccentBrush = Brush.linearGradient(listOf(Color(0xFF7FDCFF), Color(0xFF1A98FF), Color(0xFF3D6BFF)))
 
 /**
  * Police de toute l'app : Inter, la police libre la plus proche de la police d'Apple (SF Pro),
@@ -59,7 +62,8 @@ val AppFont = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),
     Font(R.font.inter_medium, FontWeight.Medium),
     Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_semibold, FontWeight.Bold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+    Font(R.font.inter_extrabold, FontWeight.ExtraBold),
 )
 
 /** Police du logo : Sora Bold. */
@@ -73,8 +77,8 @@ fun LogoText(size: TextUnit, modifier: Modifier = Modifier) {
             withStyle(SpanStyle(color = Accent)) { append("i") }
             append("TV")
         },
-        fontFamily = LogoFont,
-        fontWeight = FontWeight.Bold,
+        fontFamily = AppFont,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = size,
         color = Color.White,
         modifier = modifier,
@@ -141,6 +145,8 @@ private fun tintedTop(tint: Color?): Color {
 fun Modifier.appBackground(tint: Color? = null): Modifier {
     val top by animateColorAsState(tintedTop(tint), tween(700), label = "bgTop")
     val noise = remember { ShaderBrush(ImageShader(noiseBitmap, TileMode.Repeated, TileMode.Repeated)) }
+    // Halos lumineux : bleu Prime par défaut, ou couleur de l'affiche sélectionnée.
+    val halo by animateColorAsState(if (tint == null) Accent else lerp(tint, Accent, 0.25f), tween(700), label = "bgHalo")
     return background(
         Brush.verticalGradient(
             0f to top,
@@ -148,6 +154,20 @@ fun Modifier.appBackground(tint: Color? = null): Modifier {
             1f to BgBottom,
         )
     ).drawBehind {
+        drawRect(
+            Brush.radialGradient(
+                listOf(halo.copy(alpha = 0.34f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.04f),
+                radius = size.width * 0.62f,
+            ),
+        )
+        drawRect(
+            Brush.radialGradient(
+                listOf(halo.copy(alpha = 0.14f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.92f),
+                radius = size.width * 0.5f,
+            ),
+        )
         // Grain très léger (mode « Incrustation ») : casse les bandes visibles des dégradés sur les téléviseurs.
         // Il suit la luminosité du fond, donc le noir pur reste parfaitement noir.
         drawRect(noise, blendMode = BlendMode.Overlay)
