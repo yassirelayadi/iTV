@@ -2,6 +2,8 @@ package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -155,15 +157,21 @@ fun ChannelsScreen(
                 }
             }
         } else if (gridChannels.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = when {
-                        state.loading -> "Chargement…"
-                        state.selectedCategory == CAT_FAV && query.isEmpty() ->
-                            "Aucun favori. Appuie longuement sur OK sur une chaîne pour l'ajouter."
-                        else -> "Aucune chaîne trouvée."
-                    },
-                    color = TextSecondary,
+            when {
+                state.loading -> CatalogSkeleton()
+                state.selectedCategory == CAT_FAV && query.isEmpty() -> EmptyState(
+                    icon = Icons.Filled.Favorite,
+                    title = "Aucun favori",
+                    message = "Appuie longuement sur OK sur une chaîne (ou appui long au doigt) pour l'ajouter ici.",
+                    actionLabel = "Voir toutes les chaînes",
+                    onAction = { onSelectCategory(CAT_ALL) },
+                )
+                else -> EmptyState(
+                    icon = Icons.Filled.Search,
+                    title = "Aucune chaîne trouvée",
+                    message = if (query.isNotEmpty()) "Rien ne correspond à « $query »." else "Cette catégorie est vide.",
+                    actionLabel = if (query.isNotEmpty()) "Effacer la recherche" else "Voir toutes les chaînes",
+                    onAction = { onQuery(""); onSelectCategory(CAT_ALL) },
                 )
             }
         } else {

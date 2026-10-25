@@ -372,6 +372,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setQuery(q: String) = _state.update { it.copy(query = q) }
 
+    /** Recharge le catalogue de la section affichée (bouton « Réessayer » / « Actualiser » des états vides). */
+    fun reloadMedia() {
+        _state.update { it.copy(mediaError = null) }
+        if (credentials?.type == "xtream") loadMedia(_state.value.section, force = true) else refresh()
+    }
+
     /** Ajoute ou retire un film (« m:id ») ou une série (« s:id ») de Ma liste. */
     fun toggleFavoriteVod(key: String) {
         viewModelScope.launch { store.toggleFavoriteVod(key) }

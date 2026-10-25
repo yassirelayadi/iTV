@@ -3,6 +3,7 @@ package fr.poptv.player.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -241,8 +242,11 @@ fun DetailScreen(
                     }
                 } else {
                     when {
-                        detail.loading -> Text("Chargement des épisodes…", color = TextSecondary)
-                        detail.error != null -> Text(detail.error, color = ErrorColor)
+                        detail.loading -> Text("Chargement des épisodes…", color = TextSecondary, fontWeight = FontWeight.Medium)
+                        detail.error != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Filled.Warning, contentDescription = null, tint = ErrorColor)
+                            Text(detail.error, color = TextPrimary, fontWeight = FontWeight.Medium)
+                        }
                         else -> {
                             val season = detail.seasons.getOrNull(seasonIndex) ?: detail.seasons.first()
                             val shown = season.episodes.firstOrNull { it.id == focusedEpisodeId }
@@ -342,15 +346,19 @@ fun DetailScreen(
             poster()
             // Panneau de verre : les informations sont lisibles sur n'importe quelle image de fond.
             val panelShape = RoundedCornerShape(if (compact) 20.dp else 30.dp)
-            info(
-                Modifier
-                    .weight(1f)
-                    .then(if (detail.isSeries) Modifier.fillMaxHeight() else Modifier)
-                    .clip(panelShape)
-                    .background(GlassFill)
-                    .border(1.dp, GlassBorder, panelShape)
-                    .padding(horizontal = if (compact) 18.dp else 30.dp, vertical = if (compact) 14.dp else 26.dp),
-            )
+            if (detail.isSeries) {
+                // Série : pas de carte, le texte se pose directement sur le fond.
+                info(Modifier.weight(1f).fillMaxHeight())
+            } else {
+                info(
+                    Modifier
+                        .weight(1f)
+                        .clip(panelShape)
+                        .background(GlassFill)
+                        .border(1.dp, GlassBorder, panelShape)
+                        .padding(horizontal = if (compact) 18.dp else 30.dp, vertical = if (compact) 14.dp else 26.dp),
+                )
+            }
         }
     }
 }

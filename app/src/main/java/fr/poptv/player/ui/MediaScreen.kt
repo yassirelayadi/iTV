@@ -12,6 +12,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Row
@@ -152,6 +154,7 @@ fun MediaScreen(
     onOpen: (VodItem) -> Unit,
     onResume: (ResumeEntry) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    onRetry: () -> Unit,
     listState: LazyListState,
 ) {
     val isMovies = state.section == Section.MOVIES
@@ -235,21 +238,34 @@ fun MediaScreen(
         MediaTabs(catalog.categories, state.selectedCategory, onSelectCategory)
 
         when {
-            catalog.items.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = when {
-                        state.mediaError != null -> state.mediaError
-                        loading -> "Chargement du catalogue… cela peut prendre un moment."
-                        else -> "Aucun contenu disponible."
-                    },
-                    color = if (state.mediaError != null) ErrorColor else TextSecondary,
+            catalog.items.isEmpty() -> when {
+                state.mediaError != null -> EmptyState(
+                    icon = Icons.Filled.Warning,
+                    title = "Impossible de charger le catalogue",
+                    message = state.mediaError,
+                    error = true,
+                    actionLabel = "Réessayer",
+                    onAction = onRetry,
+                )
+                loading -> CatalogSkeleton()
+                else -> EmptyState(
+                    icon = if (isMovies) AppIcons.Movie else AppIcons.Library,
+                    title = if (isMovies) "Aucun film pour l'instant" else "Aucune série pour l'instant",
+                    message = "Le fournisseur n'en propose pas, ou toutes les catégories sont masquées " +
+                        "(Réglages → Catégories). Actualise pour recharger le catalogue.",
+                    actionLabel = "Actualiser",
+                    onAction = onRetry,
                 )
             }
 
             gridMode -> if (gridItems.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Aucun résultat.", color = TextSecondary)
-                }
+                EmptyState(
+                    icon = Icons.Filled.Search,
+                    title = "Aucun résultat",
+                    message = if (query.isNotEmpty()) "Rien ne correspond à « $query »." else "Cette catégorie ne contient aucun titre.",
+                    actionLabel = if (query.isNotEmpty()) "Effacer la recherche" else "Retour à l'accueil",
+                    onAction = { onQuery(""); onSelectCategory(CAT_ALL) },
+                )
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = posterWidth()),

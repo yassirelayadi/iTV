@@ -131,10 +131,13 @@ fun CategoriesScreen(
         }
 
         if (categories.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    if (loading) "Chargement du catalogue… cela peut prendre un moment." else "Aucune catégorie.",
-                    color = TextSecondary,
+            if (loading) {
+                CatalogSkeleton()
+            } else {
+                EmptyState(
+                    icon = fr.poptv.player.ui.AppIcons.Library,
+                    title = "Aucune catégorie",
+                    message = "Le catalogue n'est pas encore chargé. Ouvre la section depuis l'accueil, ou actualise-le dans les réglages.",
                 )
             }
         } else {

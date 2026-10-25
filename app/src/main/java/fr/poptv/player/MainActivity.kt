@@ -183,6 +183,7 @@ private fun App(viewModel: AppViewModel) {
             },
             onResume = viewModel::playResume,
             onToggleFavorite = viewModel::toggleFavoriteVod,
+            onRetry = viewModel::reloadMedia,
             listState = if (state.section == Section.MOVIES) moviesList else seriesList,
         )
     }
