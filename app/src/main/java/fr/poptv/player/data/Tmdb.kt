@@ -76,12 +76,25 @@ object TmdbClient {
         )
     }
 
+    /** Plusieurs pages d'une même liste : TMDB n'en donne que 20 par page, et le catalogue n'en contient qu'une partie. */
+    private fun pages(key: String, path: String, params: Map<String, String>, tv: Boolean, from: Int, to: Int): List<TmdbTitle> =
+        (from..to).flatMap { page ->
+            runCatching { titles(get(key, path, params + ("page" to page.toString())), tv) }.getOrDefault(emptyList())
+        }
+
     fun trends(key: String): TmdbTrends {
         val lang = mapOf("language" to "fr-FR")
+        // La première requête valide la clé : si elle échoue, l'erreur remonte telle quelle.
+        val firstMovies = titles(get(key, "trending/movie/week", lang), tv = false)
+        val firstSeries = titles(get(key, "trending/tv/week", lang), tv = true)
+        val moviesWeek = (firstMovies + pages(key, "trending/movie/week", lang, false, 2, 3) +
+            pages(key, "movie/popular", lang, false, 1, 2)).distinctBy { it.title + it.year }
+        val seriesWeek = (firstSeries + pages(key, "trending/tv/week", lang, true, 2, 3) +
+            pages(key, "tv/popular", lang, true, 1, 3)).distinctBy { it.title + it.year }
         return TmdbTrends(
-            moviesWeek = titles(get(key, "trending/movie/week", lang), tv = false),
+            moviesWeek = moviesWeek,
             moviesNow = titles(get(key, "movie/now_playing", lang + ("region" to "FR")), tv = false),
-            seriesWeek = titles(get(key, "trending/tv/week", lang), tv = true),
+            seriesWeek = seriesWeek,
             fetchedAt = System.currentTimeMillis(),
         )
     }
