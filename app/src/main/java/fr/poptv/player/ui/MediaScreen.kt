@@ -68,6 +68,12 @@ private const val SHELF_LIMIT = 30
 
 private const val SHELF_RECENT = "__recent"
 private const val SHELF_TOP = "__top"
+private const val SHELF_FAV = "__fav"
+
+/** Ma liste : clés enregistrées (« m:id » / « s:id »), préfixe de la section affichée, et bascule. */
+private class VodFavs(val keys: Set<String>, val prefix: String, val toggle: (String) -> Unit)
+
+private val LocalVodFavs = androidx.compose.runtime.compositionLocalOf { VodFavs(emptySet(), "m:") { } }
 
 private data class VodShelf(val id: String, val title: String, val items: List<VodItem>)
 
@@ -129,6 +135,7 @@ fun MediaScreen(
     onSettings: () -> Unit,
     onOpen: (VodItem) -> Unit,
     onResume: (ResumeEntry) -> Unit,
+    onToggleFavorite: (String) -> Unit,
     listState: LazyListState,
 ) {
     val isMovies = state.section == Section.MOVIES
@@ -146,6 +153,12 @@ fun MediaScreen(
     // Tendances TMDB retrouvées dans le catalogue : bandeau « À l'affiche » (films) et Top 10.
     val featured = if (isMovies) state.picks.featured else emptyList()
     val top = if (isMovies) state.picks.topMovies else state.picks.topSeries
+
+    val favPrefix = if (isMovies) "m:" else "s:"
+    val favItems = remember(catalog, state.favVod, favPrefix) {
+        catalog.items.filter { (favPrefix + it.id) in state.favVod }
+    }
+    val vodFavs = remember(state.favVod, favPrefix, onToggleFavorite) { VodFavs(state.favVod, favPrefix, onToggleFavorite) }
 
     val query = state.query.trim()
     val gridMode = query.isNotEmpty() || state.selectedCategory != CAT_ALL || shelves.isEmpty()
@@ -179,6 +192,7 @@ fun MediaScreen(
     val scope = rememberCoroutineScope()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalVodFavs provides vodFavs) {
     AppShell(
         state = state,
         onSection = onSection,
@@ -220,6 +234,7 @@ fun MediaScreen(
                             onClick = { onOpen(item) },
                             rating = ratingLabel(item.rating),
                             onFocus = { onFocusInfo(item.hero(categoryNames[item.categoryId])) },
+                            favKey = item.id,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -240,6 +255,17 @@ fun MediaScreen(
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
                         ResumeRow(resume, onResume, onFocusInfo)
+                    }
+                }
+                if (favItems.isNotEmpty()) {
+                    item(key = "favs") {
+                        VodShelfRow(
+                            shelf = VodShelf(SHELF_FAV, "Ma liste", favItems),
+                            categoryNames = categoryNames,
+                            onOpen = onOpen,
+                            onSeeAll = {},
+                            onFocusInfo = onFocusInfo,
+                        )
                     }
                 }
                 if (top.size >= 3) {
@@ -264,6 +290,7 @@ fun MediaScreen(
                 }
             }
         }
+    }
     }
 }
 
@@ -408,6 +435,7 @@ private fun TopRow(
                         onClick = { onOpen(pick.item) },
                         rating = ratingLabel(pick.item.rating),
                         onFocus = { onFocusInfo(pick.item.hero(categoryNames[pick.item.categoryId])) },
+                        favKey = pick.item.id,
                         modifier = Modifier
                             .padding(start = if (i == 9) (if (compact) 56.dp else 104.dp) else (if (compact) 34.dp else 64.dp))
                             .width(posterWidth()),
@@ -485,7 +513,7 @@ private fun VodShelfRow(
     onSeeAll: () -> Unit,
     onFocusInfo: (HeroInfo) -> Unit,
 ) {
-    val visible = remember(shelf.items) { shelf.items.take(SHELF_LIMIT) }
+    val visible = remember(shelf.items) { if (shelf.id == SHELF_FAV) shelf.items else shelf.items.take(SHELF_LIMIT) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle(shelf.title)
@@ -500,10 +528,11 @@ private fun VodShelfRow(
                     onClick = { onOpen(item) },
                     rating = ratingLabel(item.rating),
                     onFocus = { onFocusInfo(item.hero(categoryNames[item.categoryId])) },
+                    favKey = item.id,
                     modifier = Modifier.width(posterWidth()),
                 )
             }
-            if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP) {
+            if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP && shelf.id != SHELF_FAV) {
                 item(key = "see-all") {
                     FocusItem(
                         onClick = onSeeAll,
@@ -535,7 +564,10 @@ private fun PosterTile(
     rating: String? = null,
     aspect: Float = 2f / 3f,
     onFocus: () -> Unit = {},
+    favKey: String? = null,
 ) {
+    val favs = LocalVodFavs.current
+    val isFav = favKey != null && (favs.prefix + favKey) in favs.keys
     var tileFocused by remember { mutableStateOf(false) }
     val titleColor by animateColorAsState(if (tileFocused) TextPrimary else TextSecondary, label = "titleColor")
 
@@ -551,7 +583,20 @@ private fun PosterTile(
             modifier = Modifier.fillMaxWidth().aspectRatio(aspect),
             focusScale = 1.08f,
             focusRing = true,
+            onLongClick = favKey?.let { k -> { favs.toggle(favs.prefix + k) } },
         ) {
+            if (isFav) {
+                Text(
+                    "♥",
+                    color = Color(0xFFFF3B30),
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .background(Color(0x99000000), RoundedCornerShape(50))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
             if (poster != null) {
                 AsyncImage(
                     model = rememberImage(poster, 300, 450),

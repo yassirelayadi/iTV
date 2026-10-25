@@ -152,6 +152,8 @@ private fun App(viewModel: AppViewModel) {
             detail = detail,
             resumeFor = { key -> state.resume.firstOrNull { it.key == key } },
             watched = state.watched,
+            favorite = state.favVod.contains((if (detail.isSeries) "s:" else "m:") + detail.item.id),
+            onToggleFavorite = { viewModel.toggleFavoriteVod((if (detail.isSeries) "s:" else "m:") + detail.item.id) },
             onPlayMovie = { fromStart -> viewModel.playMovie(fromStart) },
             onPlayEpisode = { episode, siblings -> viewModel.playEpisode(episode, siblings) },
             onBack = viewModel::closeDetail,
@@ -180,6 +182,7 @@ private fun App(viewModel: AppViewModel) {
                 if (state.section == Section.MOVIES) viewModel.openMovie(item) else viewModel.openSeries(item)
             },
             onResume = viewModel::playResume,
+            onToggleFavorite = viewModel::toggleFavoriteVod,
             listState = if (state.section == Section.MOVIES) moviesList else seriesList,
         )
     }

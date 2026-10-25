@@ -71,6 +71,7 @@ data class UiState(
     val categories: List<Category> = emptyList(),
     val channels: List<Channel> = emptyList(),
     val favorites: Set<String> = emptySet(),
+    val favVod: Set<String> = emptySet(),
     val selectedCategory: String = CAT_ALL,
     val query: String = "",
     val playing: Channel? = null,
@@ -181,6 +182,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             store.favorites.collect { favs -> _state.update { it.copy(favorites = favs) } }
         }
         viewModelScope.launch {
+            store.favoritesVod.collect { favs -> _state.update { it.copy(favVod = favs) } }
+        }
+        viewModelScope.launch {
             store.resume.collect { list -> _state.update { it.copy(resume = list) } }
         }
         viewModelScope.launch {
@@ -230,6 +234,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     loading = false,
                     needsLogin = true,
                     favorites = it.favorites,
+                    favVod = it.favVod,
                     resume = it.resume,
                     recent = it.recent,
                     watched = it.watched,
@@ -337,6 +342,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun selectCategory(id: String) = _state.update { it.copy(selectedCategory = id) }
 
     fun setQuery(q: String) = _state.update { it.copy(query = q) }
+
+    /** Ajoute ou retire un film (« m:id ») ou une série (« s:id ») de Ma liste. */
+    fun toggleFavoriteVod(key: String) {
+        viewModelScope.launch { store.toggleFavoriteVod(key) }
+    }
 
     fun toggleFavorite(channelId: String) {
         viewModelScope.launch { store.toggleFavorite(channelId) }

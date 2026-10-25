@@ -26,6 +26,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,6 +77,8 @@ fun DetailScreen(
     detail: Detail,
     resumeFor: (String) -> ResumeEntry?,
     watched: Set<String>,
+    favorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onPlayMovie: (fromStart: Boolean) -> Unit,
     onPlayEpisode: (Episode, List<Episode>) -> Unit,
     onBack: () -> Unit,
@@ -213,6 +216,7 @@ fun DetailScreen(
                         if (resume != null) {
                             Pill("Depuis le début", onClick = { onPlayMovie(true) }, icon = Icons.Filled.Refresh)
                         }
+                        Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = Icons.Filled.Favorite, selected = favorite)
                         Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
                     }
                 } else {
@@ -249,6 +253,7 @@ fun DetailScreen(
                                         modifier = Modifier.focusRequester(seasonFocus),
                                     )
                                 }
+                                Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = Icons.Filled.Favorite, selected = favorite)
                                 Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
                             }
 

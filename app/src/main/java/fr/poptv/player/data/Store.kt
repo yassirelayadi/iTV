@@ -22,6 +22,7 @@ class Store(private val context: Context) {
 
     private val keyCreds = stringPreferencesKey("credentials_enc")
     private val keyFavorites = stringSetPreferencesKey("favorites")
+    private val keyFavVod = stringSetPreferencesKey("favorites_vod")
     private val keyLast = stringPreferencesKey("last_channel")
 
     val credentials: Flow<Credentials?> = context.dataStore.data.map { prefs ->
@@ -46,6 +47,16 @@ class Store(private val context: Context) {
     }
 
     val favorites: Flow<Set<String>> = context.dataStore.data.map { it[keyFavorites].orEmpty() }
+
+    /** Ma liste : films (« m:id ») et séries (« s:id »). */
+    val favoritesVod: Flow<Set<String>> = context.dataStore.data.map { it[keyFavVod].orEmpty() }
+
+    suspend fun toggleFavoriteVod(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[keyFavVod].orEmpty()
+            prefs[keyFavVod] = if (key in current) current - key else current + key
+        }
+    }
 
     val lastChannel: Flow<String?> = context.dataStore.data.map { it[keyLast] }
 
