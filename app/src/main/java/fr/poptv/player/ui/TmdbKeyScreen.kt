@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun TmdbKeyScreen(
     configured: Boolean,
+    usesDefault: Boolean,
     busy: Boolean,
     error: String?,
     onSave: (String) -> Unit,
@@ -60,6 +61,14 @@ fun TmdbKeyScreen(
                 lineHeight = 21.sp,
                 textAlign = TextAlign.Center,
             )
+            if (usesDefault) {
+                Text(
+                    "L'app contient déjà une clé par défaut : ta propre clé est facultative.",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
             MinimalField(
                 value = key,
                 onChange = { key = it },

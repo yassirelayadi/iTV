@@ -121,6 +121,7 @@ private fun App(viewModel: AppViewModel) {
 
         state.tmdbOpen -> fr.poptv.player.ui.TmdbKeyScreen(
             configured = state.tmdbConfigured,
+            usesDefault = state.tmdbUsesDefault,
             busy = state.tmdbBusy,
             error = state.tmdbError,
             onSave = viewModel::saveTmdbKey,

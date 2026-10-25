@@ -15,6 +15,11 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
+
+        // Clé TMDB par défaut : fournie par la compilation GitHub (secret TMDB_KEY), jamais écrite dans le code.
+        // Vide si le secret n'existe pas : l'utilisateur peut alors saisir sa propre clé dans les réglages.
+        val tmdbKey = (System.getenv("TMDB_KEY") ?: "").trim().replace("\"", "").replace("\\", "")
+        buildConfigField("String", "TMDB_DEFAULT_KEY", "\"$tmdbKey\"")
     }
 
     // La clé de signature est fournie par la compilation GitHub (variables d'environnement) ;
@@ -50,6 +55,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

@@ -100,6 +100,7 @@ data class UiState(
     val manageSection: Section? = null,
     // TMDB : tendances et « à l'affiche »
     val tmdbConfigured: Boolean = false,
+    val tmdbUsesDefault: Boolean = false,
     val tmdbOpen: Boolean = false,
     val tmdbBusy: Boolean = false,
     val tmdbError: String? = null,
@@ -165,13 +166,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            store.tmdbKey.collect { key ->
-                tmdbKeyValue = key
-                _state.update { it.copy(tmdbConfigured = key != null) }
-                if (key == null) {
-                    trends = null
-                    _state.update { it.copy(picks = TmdbPicks()) }
+            store.tmdbKey.collect { own ->
+                val default = BuildConfig.TMDB_DEFAULT_KEY.takeIf { it.isNotBlank() }
+                tmdbKeyValue = own ?: default
+                trends = null
+                _state.update {
+                    it.copy(tmdbConfigured = own != null, tmdbUsesDefault = own == null && default != null)
                 }
+                if (tmdbKeyValue == null) _state.update { it.copy(picks = TmdbPicks()) }
+                else if (_state.value.section != Section.LIVE) ensureTmdb()
             }
         }
         viewModelScope.launch {
@@ -231,6 +234,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     recent = it.recent,
                     watched = it.watched,
                     tmdbConfigured = it.tmdbConfigured,
+                    tmdbUsesDefault = it.tmdbUsesDefault,
                 )
             }
         }
@@ -477,7 +481,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             if (key.isEmpty()) {
                 store.saveTmdbKey(null)
-                _state.update { it.copy(tmdbOpen = false, tmdbError = null, picks = TmdbPicks()) }
+                _state.update { it.copy(tmdbOpen = false, tmdbError = null) }
                 return@launch
             }
             _state.update { it.copy(tmdbBusy = true, tmdbError = null) }

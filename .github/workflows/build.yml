@@ -55,6 +55,8 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Compiler l'APK (version finale, signée)
+        env:
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
         run: gradle assembleRelease --no-daemon
 
       - name: Renommer l'APK

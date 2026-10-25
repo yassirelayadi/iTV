@@ -98,7 +98,11 @@ fun SettingsScreen(
             if (state.vodSupported) {
                 SettingRow(
                     title = "Tendances et à l'affiche (TMDB)",
-                    subtitle = if (state.tmdbConfigured) "Activé · clé enregistrée" else "Top 10 et bandeau : ajoute ta clé TMDB",
+                    subtitle = when {
+                        state.tmdbConfigured -> "Activé · ta clé est enregistrée"
+                        state.tmdbUsesDefault -> "Activé · clé fournie avec l'app"
+                        else -> "Top 10 et bandeau : ajoute ta clé TMDB"
+                    },
                     onClick = onTmdb,
                 )
             }
