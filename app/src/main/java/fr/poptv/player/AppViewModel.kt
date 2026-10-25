@@ -14,6 +14,7 @@ import fr.poptv.player.data.Episode
 import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Repository
 import fr.poptv.player.data.ResumeEntry
+import fr.poptv.player.data.Season
 import fr.poptv.player.data.Section
 import fr.poptv.player.data.Store
 import fr.poptv.player.data.VodCatalog
@@ -528,25 +529,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun playEpisode(episode: Episode, siblings: List<Episode>, fromStart: Boolean = false) {
         val detail = _state.value.detail ?: return
         val creds = credentials ?: return
-        queue = siblings.map { ep ->
+        // La file de lecture couvre toutes les saisons : l'épisode suivant est proposé même en fin de saison.
+        val all = orderedEpisodes(detail.seasons, episode)
+        val list = if (all.any { it.id == episode.id }) all else siblings
+        startEpisodeQueue(creds, detail.item.name, detail.item.poster, list, episode, fromStart, null)
+    }
+
+    /** Épisodes de toutes les saisons, dans l'ordre (les spéciaux seulement si on regarde un spécial). */
+    private fun orderedEpisodes(seasons: List<Season>, current: Episode): List<Episode> =
+        seasons.filter { it.number != 0 || current.season == 0 }
+            .sortedBy { it.number }
+            .flatMap { it.episodes.sortedBy { e -> e.number } }
+
+    private fun startEpisodeQueue(
+        creds: Credentials,
+        seriesName: String,
+        poster: String?,
+        list: List<Episode>,
+        episode: Episode,
+        fromStart: Boolean,
+        startMs: Long?,
+    ) {
+        queue = list.map { ep ->
             VodPlayback(
                 key = "e:${ep.id}",
                 kind = "episode",
-                title = "${detail.item.name} · S${ep.season} E${ep.number}",
+                title = "$seriesName · S${ep.season} E${ep.number}",
                 url = ep.url ?: XtreamClient.episodeUrl(creds, ep),
                 ext = ep.ext,
-                poster = detail.item.poster,
+                poster = poster,
                 startMs = 0L,
                 hasNext = false,
                 subtitle = ep.title,
             )
         }
-        queueIndex = siblings.indexOfFirst { it.id == episode.id }.coerceAtLeast(0)
+        queueIndex = list.indexOfFirst { it.id == episode.id }.coerceAtLeast(0)
         val current = queue[queueIndex]
         _state.update {
             it.copy(
                 vodPlaying = current.copy(
-                    startMs = if (fromStart) 0L else resumePosition(current.key),
+                    startMs = if (fromStart) 0L else startMs ?: resumePosition(current.key),
                     hasNext = queueIndex < queue.lastIndex,
                     next = nextLabel(),
                 )
@@ -554,8 +576,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Reprise d'un épisode depuis la rangée « Reprendre » : on reconstruit la série pour proposer la suite. */
+    private fun resumeEpisode(entry: ResumeEntry, creds: Credentials): Boolean {
+        val seriesName = entry.title.substringBeforeLast(" · ", "")
+        val item = _state.value.allSeries.items.firstOrNull { it.name == seriesName } ?: return false
+        viewModelScope.launch {
+            val seasons = try {
+                if (creds.type == "xtream") repo.seriesInfo(creds, item.id).second
+                else M3uClassifier.seasons(m3uEpisodes[item.id].orEmpty())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+            val key = entry.key.substringAfter(':')
+            val episode = seasons.flatMap { it.episodes }.firstOrNull { it.id == key }
+            if (episode == null) {
+                playResumeSimple(entry, creds)
+            } else {
+                startEpisodeQueue(creds, seriesName, entry.poster ?: item.poster, orderedEpisodes(seasons, episode), episode, false, entry.positionMs)
+            }
+        }
+        return true
+    }
+
     fun playResume(entry: ResumeEntry) {
         val creds = credentials ?: return
+        if (entry.kind == "episode" && resumeEpisode(entry, creds)) return
+        playResumeSimple(entry, creds)
+    }
+
+    private fun playResumeSimple(entry: ResumeEntry, creds: Credentials) {
         queue = emptyList()
         queueIndex = -1
         _state.update {
