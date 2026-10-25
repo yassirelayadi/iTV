@@ -67,6 +67,8 @@ import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Http
 import kotlinx.coroutines.delay
 
+private const val MAX_RETRIES = 3
+
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
@@ -94,6 +96,9 @@ fun PlayerScreen(
 
     var buffering by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var retries by remember { mutableIntStateOf(0) }
+    var retryTick by remember { mutableIntStateOf(0) }
+    var reconnecting by remember { mutableStateOf(false) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlayVisible by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
@@ -102,12 +107,30 @@ fun PlayerScreen(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
-                if (playbackState == Player.STATE_READY) error = null
+                if (playbackState == Player.STATE_READY) {
+                    error = null
+                    retries = 0
+                    reconnecting = false
+                }
             }
 
             override fun onPlayerError(e: PlaybackException) {
-                buffering = false
-                error = "Lecture impossible (${e.errorCodeName}). OK pour réessayer."
+                if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                    player.seekToDefaultPosition()
+                    player.prepare()
+                    return
+                }
+                // Coupure du flux : jusqu'à 3 nouvelles tentatives automatiques (2 s, 4 s, 6 s), puis message.
+                if (retries < MAX_RETRIES) {
+                    retries++
+                    reconnecting = true
+                    buffering = true
+                    retryTick++
+                } else {
+                    reconnecting = false
+                    buffering = false
+                    error = "Lecture impossible (${e.errorCodeName}). OK pour réessayer."
+                }
             }
         }
         player.addListener(listener)
@@ -117,8 +140,18 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(retryTick) {
+        if (retryTick == 0) return@LaunchedEffect
+        delay(2_000L * retries)
+        if (!reconnecting) return@LaunchedEffect // chaîne changée ou lecture revenue entre-temps
+        player.prepare()
+        player.playWhenReady = true
+    }
+
     LaunchedEffect(channel.id) {
         error = null
+        retries = 0
+        reconnecting = false
         buffering = true
         val item = MediaItem.Builder()
             .setUri(channel.streamUrl)
@@ -154,6 +187,7 @@ fun PlayerScreen(
                 onTap = {
                     if (error != null) {
                         error = null
+                        retries = 0
                         buffering = true
                         player.prepare()
                         player.playWhenReady = true
@@ -177,6 +211,7 @@ fun PlayerScreen(
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         if (error != null) {
                             error = null
+                            retries = 0
                             buffering = true
                             player.prepare()
                             player.playWhenReady = true
@@ -205,7 +240,17 @@ fun PlayerScreen(
         )
 
         if (buffering && error == null) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                if (reconnecting) {
+                    Text(
+                        "Reconnexion… ($retries/$MAX_RETRIES)",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
         }
 
         error?.let {

@@ -25,6 +25,7 @@ import fr.poptv.player.data.VodCatalog
 import fr.poptv.player.data.VodItem
 import fr.poptv.player.data.XtreamClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -163,6 +164,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var tmdbKeyValue: String? = null
     private var trends: TmdbTrends? = null
     private var picksJob: kotlinx.coroutines.Job? = null
+    private var preloadJob: kotlinx.coroutines.Job? = null
     private var queueIndex = -1
 
     init {
@@ -175,7 +177,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(tmdbConfigured = own != null, tmdbUsesDefault = own == null && default != null)
                 }
                 if (tmdbKeyValue == null) _state.update { it.copy(picks = TmdbPicks()) }
-                else if (_state.value.section != Section.LIVE) ensureTmdb()
+                else ensureTmdb()
             }
         }
         viewModelScope.launch {
@@ -315,6 +317,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                     ).refiltered()
                 }
+                preloadCatalogs(creds)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -326,6 +329,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Charge films, séries et tendances TMDB en arrière-plan, une fois les chaînes affichées :
+     * l'un après l'autre (mémoire et débit ménagés), pour que les sections soient prêtes à l'ouverture.
+     */
+    private fun preloadCatalogs(creds: Credentials) {
+        if (creds.type != "xtream") return
+        preloadJob?.cancel()
+        preloadJob = viewModelScope.launch {
+            delay(1_500)
+            ensureTmdb()
+            loadMedia(Section.MOVIES, force = false)?.join()
+            loadMedia(Section.SERIES, force = false)?.join()
         }
     }
 
@@ -414,16 +432,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Catalogues films / séries ----
 
-    private fun loadMedia(section: Section, force: Boolean) {
-        val creds = credentials ?: return
-        if (creds.type != "xtream") return // M3U : le catalogue est déjà trié au chargement
+    private fun loadMedia(section: Section, force: Boolean): kotlinx.coroutines.Job? {
+        val creds = credentials ?: return null
+        if (creds.type != "xtream") return null // M3U : le catalogue est déjà trié au chargement
         val s = _state.value
         val isMovies = section == Section.MOVIES
         val loaded = (if (isMovies) s.allMovies else s.allSeries).items.isNotEmpty()
         val busy = if (isMovies) s.moviesLoading else s.seriesLoading
-        if (busy || (loaded && !force)) return
+        if (busy || (loaded && !force)) return null
 
-        viewModelScope.launch {
+        return viewModelScope.launch {
             setMediaLoading(section, true)
             var fromCache = loaded
             if (!loaded) {

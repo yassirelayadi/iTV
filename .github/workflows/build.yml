@@ -54,6 +54,10 @@ jobs:
             echo "ITV_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      # Tests automatiques : un test qui échoue arrête la compilation, aucun APK n'est publié.
+      - name: Lancer les tests
+        run: gradle testReleaseUnitTest --no-daemon
+
       - name: Compiler l'APK (version finale, signée)
         env:
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
