@@ -89,7 +89,7 @@ object TmdbClient {
 
 /** Rapproche les titres TMDB des films et séries du catalogue (par titre normalisé et année). */
 object TmdbMatcher {
-    private val tagRegex = Regex("""\[[^\]]*]|\{[^}]*}""")
+    private val tagRegex = Regex("""\[[^\]]*\]|\{[^\}]*\}""")
     private val yearRegex = Regex("""\(?\b((?:19|20)\d{2})\b\)?""")
     private val prefixRegex = Regex("""^\s*[A-Za-z]{2,3}\s*[|:\-]\s+""")
     private val qualityRegex = Regex("""\b(multi|vf|vff|vo|vost|vostfr|truefrench|french|4k|uhd|fhd|hd|sd|hdr|bluray|webrip|web-dl|x264|x265|hevc)\b""")
