@@ -194,6 +194,8 @@ private fun App(viewModel: AppViewModel) {
                         onPlayMovie = { fromStart -> viewModel.playMovie(fromStart) },
                         onPlayEpisode = { episode, siblings -> viewModel.playEpisode(episode, siblings) },
                         onBack = viewModel::closeDetail,
+                        backdrop = (state.picks.featured + state.picks.topMovies + state.picks.topSeries)
+                            .firstOrNull { it.item.id == shownDetail.item.id }?.backdrop,
                     )
 
                     target == 0 -> ChannelsScreen(

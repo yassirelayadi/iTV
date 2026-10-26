@@ -84,6 +84,7 @@ fun DetailScreen(
     onPlayMovie: (fromStart: Boolean) -> Unit,
     onPlayEpisode: (Episode, List<Episode>) -> Unit,
     onBack: () -> Unit,
+    backdrop: String? = null,
 ) {
     BackHandler(onBack = onBack)
 
@@ -137,12 +138,16 @@ fun DetailScreen(
     // Fond : dégradé graphite teinté par la couleur de l'affiche, avec l'affiche très estompée par-dessus.
     val tint = rememberPosterTint(item.poster)
     Box(modifier = Modifier.fillMaxSize().appBackground(tint).appear()) {
-        if (item.poster != null) {
+        // Image de fond centrée, qui couvre tout l'écran : le décor TMDB (paysage) s'il existe,
+        // sinon l'affiche agrandie.
+        val bgImage = backdrop ?: item.poster
+        if (bgImage != null) {
             AsyncImage(
-                model = rememberImage(item.poster, 320, 480),
+                model = if (backdrop != null) rememberImage(backdrop, 1280, 720) else rememberImage(bgImage, 640, 960),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().alpha(0.10f),
+                alignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize().alpha(if (backdrop != null) 0.28f else 0.14f),
             )
         }
         Box(
@@ -341,24 +346,11 @@ fun DetailScreen(
                 .fillMaxSize()
                 .padding(horizontal = if (compact) 28.dp else 56.dp, vertical = if (compact) 18.dp else 36.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 22.dp else 40.dp),
-            verticalAlignment = if (detail.isSeries) Alignment.Top else Alignment.Bottom,
+            verticalAlignment = if (detail.isSeries) Alignment.Top else Alignment.CenterVertically,
         ) {
             poster()
-            // Panneau de verre : les informations sont lisibles sur n'importe quelle image de fond.
-            val panelShape = RoundedCornerShape(if (compact) 20.dp else 30.dp)
-            if (detail.isSeries) {
-                // Série : pas de carte, le texte se pose directement sur le fond.
-                info(Modifier.weight(1f).fillMaxHeight())
-            } else {
-                info(
-                    Modifier
-                        .weight(1f)
-                        .clip(panelShape)
-                        .background(GlassFill)
-                        .border(1.dp, GlassBorder, panelShape)
-                        .padding(horizontal = if (compact) 18.dp else 30.dp, vertical = if (compact) 14.dp else 26.dp),
-                )
-            }
+            // Pas de carte : le texte se pose directement sur le fond (série : colonne pleine hauteur).
+            info(if (detail.isSeries) Modifier.weight(1f).fillMaxHeight() else Modifier.weight(1f))
         }
     }
 }
