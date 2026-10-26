@@ -374,7 +374,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Recharge le catalogue de la section affichée (bouton « Réessayer » / « Actualiser » des états vides). */
     fun reloadMedia() {
-        _state.update { it.copy(mediaError = null) }
+        // L'erreur reste affichée pendant le rechargement : le bouton ne disparaît pas sous le doigt.
         if (credentials?.type == "xtream") loadMedia(_state.value.section, force = true) else refresh()
     }
 
@@ -492,10 +492,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: OutOfMemoryError) {
                 _state.update { it.copy(mediaError = "Catalogue trop volumineux pour la mémoire de cet appareil.") }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _state.update { st ->
                     val empty = (if (isMovies) st.allMovies else st.allSeries).items.isEmpty()
-                    st.copy(mediaError = if (empty) friendly(e) else null)
+                    st.copy(mediaError = if (empty) friendly(e as? Exception ?: Exception(e.message)) else null)
                 }
             } finally {
                 setMediaLoading(section, false)
@@ -882,7 +882,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         is UnknownHostException -> "Serveur introuvable. Vérifie l'adresse et ta connexion."
         is SocketTimeoutException -> "Le serveur met trop de temps à répondre."
         is IOException -> "Erreur réseau : ${e.message ?: "connexion impossible"}"
-        is IllegalStateException -> e.message ?: "Erreur inconnue"
+        is IllegalStateException -> when {
+            e.message?.contains("HTTP 5") == true -> "Le serveur du fournisseur est indisponible (${e.message?.substringAfter("HTTP ")}). Réessaie dans quelques minutes."
+            else -> e.message ?: "Erreur inconnue"
+        }
         is IllegalArgumentException -> "Adresse invalide."
         else -> e.message ?: "Erreur inconnue"
     }

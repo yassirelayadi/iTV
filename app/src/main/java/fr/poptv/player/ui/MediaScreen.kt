@@ -253,8 +253,8 @@ fun MediaScreen(
                     title = "Impossible de charger le catalogue",
                     message = state.mediaError,
                     error = true,
-                    actionLabel = "Réessayer",
-                    onAction = onRetry,
+                    actionLabel = if (loading) "Chargement…" else "Réessayer",
+                    onAction = { if (!loading) onRetry() },
                 )
                 loading -> CatalogSkeleton()
                 else -> EmptyState(
