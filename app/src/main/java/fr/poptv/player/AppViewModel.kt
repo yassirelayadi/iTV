@@ -130,6 +130,16 @@ private fun UiState.refiltered(): UiState = copy(
     series = allSeries.without(hiddenSeries),
 )
 
+/** Refiltre uniquement la section modifiée : un appui sur une catégorie ne doit pas tout recalculer. */
+private fun UiState.refilteredFor(section: Section): UiState = when (section) {
+    Section.LIVE -> copy(
+        categories = if (hiddenLive.isEmpty()) allCategories else allCategories.filter { it.id !in hiddenLive },
+        channels = if (hiddenLive.isEmpty()) allChannels else allChannels.filter { it.categoryId !in hiddenLive },
+    )
+    Section.MOVIES -> copy(movies = allMovies.without(hiddenMovies))
+    Section.SERIES -> copy(series = allSeries.without(hiddenSeries))
+}
+
 private fun UiState.hiddenOf(section: Section): Set<String> = when (section) {
     Section.LIVE -> hiddenLive
     Section.MOVIES -> hiddenMovies
@@ -437,7 +447,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { s ->
             val current = s.hiddenOf(section)
             updated = if (hidden) current + ids else current - ids.toSet()
-            s.withHidden(section, updated).refiltered()
+            s.withHidden(section, updated).refilteredFor(section)
         }
         viewModelScope.launch { store.setHidden(section, updated) }
         // Les catégories masquées ne sont pas téléchargées : en réafficher une demande de la charger.
@@ -456,9 +466,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val isMovies = section == Section.MOVIES
         val loaded = (if (isMovies) s.allMovies else s.allSeries).items.isNotEmpty()
         val busy = if (isMovies) s.moviesLoading else s.seriesLoading
-        if (busy || (loaded && !force)) return null
+        // Un seul téléchargement à la fois par section : des appuis rapides (afficher / masquer des
+        // catégories) ne doivent pas lancer plusieurs téléchargements du catalogue en parallèle.
+        if (busy || mediaJobs[section]?.isActive == true || (loaded && !force)) return null
 
-        return viewModelScope.launch {
+        val job = viewModelScope.launch {
             setMediaLoading(section, true)
             var fromCache = loaded
             if (!loaded) {
@@ -501,7 +513,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 setMediaLoading(section, false)
             }
         }
+        mediaJobs[section] = job
+        job.invokeOnCompletion { if (mediaJobs[section] === job) mediaJobs.remove(section) }
+        return job
     }
+
+    private val mediaJobs = mutableMapOf<Section, kotlinx.coroutines.Job>()
 
     private fun setCatalog(section: Section, catalog: VodCatalog) {
         _state.update {
