@@ -245,7 +245,6 @@ fun MediaScreen(
             null
         },
     ) {
-        MediaTabs(catalog.categories, state.selectedCategory, onSelectCategory)
 
         when {
             catalog.items.isEmpty() -> when {
