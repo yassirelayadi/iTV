@@ -56,7 +56,14 @@ jobs:
 
       # Tests automatiques : un test qui échoue arrête la compilation, aucun APK n'est publié.
       - name: Lancer les tests
-        run: gradle testReleaseUnitTest --no-daemon
+        run: |
+          set +e
+          gradle testReleaseUnitTest --no-daemon > "$RUNNER_TEMP/tests.log" 2>&1
+          code=$?
+          # Les erreurs de compilation et de tests deviennent des annotations lisibles sans ouvrir les journaux.
+          grep -E "^e: |FAILED|AssertionError|expected:|Unresolved|Exception" "$RUNNER_TEMP/tests.log" | head -25 | cut -c1-400 | while IFS= read -r line; do echo "::error::$line"; done
+          tail -5 "$RUNNER_TEMP/tests.log"
+          exit $code
 
       - name: Compiler l'APK (version finale, signée)
         env:
