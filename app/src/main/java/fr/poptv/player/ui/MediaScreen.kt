@@ -437,7 +437,7 @@ private fun FeaturedHero(
                 .align(Alignment.BottomStart)
                 .padding(start = ScreenPadding, end = ScreenPadding, bottom = 6.dp)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 10.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
         ) {
             Text(
                 "À L'AFFICHE",
@@ -456,22 +456,22 @@ private fun FeaturedHero(
             Text(
                 pick.item.name,
                 color = TextPrimary,
-                fontSize = if (compact) (if (longTitle) 18.sp else 22.sp) else (if (longTitle) 34.sp else 44.sp),
-                lineHeight = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 36.sp else 46.sp),
+                fontSize = if (compact) (if (longTitle) 17.sp else 20.sp) else (if (longTitle) 30.sp else 38.sp),
+                lineHeight = if (compact) (if (longTitle) 19.sp else 22.sp) else (if (longTitle) 32.sp else 40.sp),
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.5).sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(0.7f),
             )
-            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 16.sp, fontWeight = FontWeight.Medium)
+            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 14.sp, fontWeight = FontWeight.Medium)
             if (!compact && pick.overview != null) {
                 Text(
                     pick.overview,
                     color = TextSecondary,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
-                    maxLines = 2,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),
                 )
