@@ -124,6 +124,17 @@ class Store(private val context: Context) {
         context.dataStore.edit { prefs -> Section.entries.forEach { prefs.remove(hiddenKey(it)) } }
     }
 
+    // ---- Dernières sélections TMDB (Top 10 et bandeaux) : affichées dès l'ouverture ----
+
+    private val keyPicks = stringPreferencesKey("picks_cache")
+
+    suspend fun loadPicks(): TmdbPicks? = context.dataStore.data.first()[keyPicks]
+        ?.let { runCatching { json.decodeFromString(TmdbPicks.serializer(), it) }.getOrNull() }
+
+    suspend fun savePicks(picks: TmdbPicks) {
+        context.dataStore.edit { it[keyPicks] = json.encodeToString(TmdbPicks.serializer(), picks) }
+    }
+
     // ---- Reprise de lecture (films et épisodes) ----
 
     private val keyResume = stringPreferencesKey("resume")

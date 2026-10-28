@@ -44,6 +44,11 @@ import androidx.compose.ui.unit.sp
 import fr.poptv.player.UiState
 import fr.poptv.player.data.Section
 
+/** Vrai juste après un clic dans le menu : le menu de l'écran suivant reprend alors le focus. */
+internal object RailFocus {
+    var pending = false
+}
+
 internal val ScreenPadding: androidx.compose.ui.unit.Dp
     @Composable get() = if (LocalCompact.current) 16.dp else 48.dp
 
@@ -64,6 +69,15 @@ fun AppShell(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var searchOpen by remember(state.section) { mutableStateOf(false) }
+    val sectionFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        // Le menu est recréé à chaque changement de section : on redonne le focus à la section choisie.
+        if (RailFocus.pending) {
+            RailFocus.pending = false
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching { sectionFocus.requestFocus() }
+        }
+    }
 
     Row(modifier = modifier.fillMaxSize()) {
         SideRail(
@@ -71,6 +85,7 @@ fun AppShell(
             onSection = onSection,
             onSearch = { searchOpen = true },
             onSettings = onSettings,
+            sectionFocus = sectionFocus,
         )
         // Le fond optionnel (image du bandeau) passe derrière l'en-tête et le contenu.
         androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f).fillMaxHeight().appear()) {
@@ -150,8 +165,13 @@ private fun SideRail(
     onSection: (Section) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
+    sectionFocus: FocusRequester,
 ) {
     val compact = LocalCompact.current
+    fun pick(section: Section) {
+        if (section != state.section) RailFocus.pending = true
+        onSection(section)
+    }
     Column(
         modifier = Modifier
             .width(if (compact) 58.dp else 80.dp)
@@ -167,10 +187,10 @@ private fun SideRail(
     ) {
         LogoText(size = if (compact) 16.sp else 22.sp)
         Spacer(Modifier.height(if (compact) 6.dp else 14.dp))
-        RailButton(AppIcons.Tv, "Chaînes", selected = state.section == Section.LIVE) { onSection(Section.LIVE) }
+        RailButton(AppIcons.Tv, "Chaînes", selected = state.section == Section.LIVE, focusRequester = sectionFocus.takeIf { state.section == Section.LIVE }) { pick(Section.LIVE) }
         if (state.vodSupported) {
-            RailButton(AppIcons.Movie, "Films", selected = state.section == Section.MOVIES) { onSection(Section.MOVIES) }
-            RailButton(AppIcons.Library, "Séries", selected = state.section == Section.SERIES) { onSection(Section.SERIES) }
+            RailButton(AppIcons.Movie, "Films", selected = state.section == Section.MOVIES, focusRequester = sectionFocus.takeIf { state.section == Section.MOVIES }) { pick(Section.MOVIES) }
+            RailButton(AppIcons.Library, "Séries", selected = state.section == Section.SERIES, focusRequester = sectionFocus.takeIf { state.section == Section.SERIES }) { pick(Section.SERIES) }
         }
         Spacer(Modifier.weight(1f))
         RailButton(Icons.Filled.Search, "Rechercher", selected = false, onClick = onSearch)
@@ -180,10 +200,10 @@ private fun SideRail(
 
 /** Icône du menu latéral : pastille bleue si c'est la section affichée, blanche au focus. */
 @Composable
-private fun RailButton(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun RailButton(icon: ImageVector, label: String, selected: Boolean, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
     FocusItem(
         onClick = onClick,
-        modifier = Modifier.size(if (LocalCompact.current) 38.dp else 50.dp),
+        modifier = Modifier.size(if (LocalCompact.current) 38.dp else 50.dp).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
         shape = RoundedCornerShape(if (LocalCompact.current) 13.dp else 18.dp),
         focusScale = 1.1f,
         idleColor = if (selected) Accent else Color.Transparent,

@@ -75,6 +75,7 @@ private const val SHELF_LIMIT = 30
 private const val SHELF_RECENT = "__recent"
 private const val SHELF_TOP = "__top"
 private const val SHELF_FAV = "__fav"
+private const val SHELF_FORYOU = "__foryou"
 
 /** Ma liste : clés enregistrées (« m:id » / « s:id »), préfixe de la section affichée, et bascule. */
 private class VodFavs(val keys: Set<String>, val prefix: String, val toggle: (String) -> Unit)
@@ -180,7 +181,7 @@ fun MediaScreen(
     }
 
     // Tendances TMDB retrouvées dans le catalogue : bandeau « À l'affiche » (films) et Top 10.
-    val featured = if (isMovies) state.picks.featured else emptyList()
+    val featured = if (isMovies) state.picks.featured else state.picks.featuredSeries
     val top = if (isMovies) state.picks.topMovies else state.picks.topSeries
 
     val favPrefix = if (isMovies) "m:" else "s:"
@@ -325,6 +326,18 @@ fun MediaScreen(
                     item(key = "favs") {
                         VodShelfRow(
                             shelf = VodShelf(SHELF_FAV, "Ma liste", favItems),
+                            categoryNames = categoryNames,
+                            onOpen = onOpen,
+                            onSeeAll = {},
+                            onFocusInfo = onFocusInfo,
+                        )
+                    }
+                }
+                val forYou = if (isMovies) state.forYouMovies else state.forYouSeries
+                if (forYou.size >= 5) {
+                    item(key = "foryou") {
+                        VodShelfRow(
+                            shelf = VodShelf(SHELF_FORYOU, "Pour vous", forYou),
                             categoryNames = categoryNames,
                             onOpen = onOpen,
                             onSeeAll = {},
@@ -561,28 +574,40 @@ private fun ResumeRow(
     onResume: (ResumeEntry) -> Unit,
     onFocusInfo: (HeroInfo) -> Unit,
 ) {
+    // Une seule vignette par série (l'épisode le plus récent), avec l'affiche de la série.
+    val shown = remember(entries) {
+        val seen = HashSet<String>()
+        entries.filter { e -> seen.add(resumeGroup(e)) }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle("Reprendre")
         LazyRow(
             contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            items(entries, key = { it.key }) { entry ->
+            items(shown, key = { resumeGroup(it) }) { entry ->
+                val isEpisode = entry.kind == "episode"
+                val name = if (isEpisode) entry.title.substringBeforeLast(" · ", entry.title) else entry.title
+                val episodeLabel = if (isEpisode) entry.title.substringAfterLast(" · ", "") else ""
                 PosterTile(
-                    title = entry.title,
+                    title = name,
                     poster = entry.poster,
                     progress = if (entry.durationMs > 0) entry.positionMs.toFloat() / entry.durationMs else null,
                     onClick = { onResume(entry) },
                     onFocus = {
-                        onFocusInfo(HeroInfo(entry.title, "Reprendre à ${formatTime(entry.positionMs)}", null, entry.poster))
+                        val at = "Reprendre à ${formatTime(entry.positionMs)}"
+                        onFocusInfo(HeroInfo(name, if (episodeLabel.isNotEmpty()) "$episodeLabel · $at" else at, null, entry.poster))
                     },
-                    aspect = 16f / 9f,
-                    modifier = Modifier.width(if (LocalCompact.current) 158.dp else 236.dp),
+                    modifier = Modifier.width(posterWidth()),
                 )
             }
         }
     }
 }
+
+/** Clé de regroupement de « Reprendre » : une série = une entrée, un film = lui-même. */
+private fun resumeGroup(e: ResumeEntry): String =
+    if (e.kind == "episode") "s:" + e.title.substringBeforeLast(" · ", e.title) else e.key
 
 /** Largeur d'une affiche : réduite sur téléphone. */
 @Composable
@@ -615,7 +640,7 @@ private fun VodShelfRow(
                     modifier = Modifier.width(posterWidth()),
                 )
             }
-            if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP && shelf.id != SHELF_FAV) {
+            if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP && shelf.id != SHELF_FAV && shelf.id != SHELF_FORYOU) {
                 item(key = "see-all") {
                     FocusItem(
                         onClick = onSeeAll,

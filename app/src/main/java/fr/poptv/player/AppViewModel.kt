@@ -15,6 +15,8 @@ import fr.poptv.player.data.Episode
 import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Repository
 import fr.poptv.player.data.ResumeEntry
+import kotlinx.coroutines.flow.collectLatest
+import fr.poptv.player.data.ForYou
 import fr.poptv.player.data.Season
 import fr.poptv.player.data.Section
 import fr.poptv.player.data.TmdbClient
@@ -110,6 +112,9 @@ data class UiState(
     val tmdbBusy: Boolean = false,
     val tmdbError: String? = null,
     val picks: TmdbPicks = TmdbPicks(),
+    // « Pour vous » : suggestions selon la liste et l'historique
+    val forYouMovies: List<VodItem> = emptyList(),
+    val forYouSeries: List<VodItem> = emptyList(),
 )
 
 private fun VodCatalog.without(hidden: Set<String>): VodCatalog =
@@ -181,6 +186,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var queueIndex = -1
 
     init {
+        // Dernières sélections TMDB : le Top 10 et les bandeaux s'affichent tout de suite, avant tout réseau.
+        viewModelScope.launch {
+            store.loadPicks()?.let { cached ->
+                _state.update { if (it.picks.topMovies.isEmpty() && it.picks.topSeries.isEmpty()) it.copy(picks = cached) else it }
+            }
+        }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            _state
+                .map { ForYouInput(it.movies, it.series, it.favVod, it.resume, it.watched) }
+                .distinctUntilChanged { a, b -> a.movies === b.movies && a.series === b.series && a.fav == b.fav && a.resume == b.resume && a.watched == b.watched }
+                .collectLatest { input ->
+                    delay(400) // un calcul à la fois, après une courte pause (rafales de changements)
+                    computeForYou(input)
+                }
+        }
         viewModelScope.launch {
             store.tmdbKey.collect { own ->
                 val default = BuildConfig.TMDB_DEFAULT_KEY.takeIf { it.isNotBlank() }
@@ -361,7 +381,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (creds.type != "xtream") return
         preloadJob?.cancel()
         preloadJob = viewModelScope.launch {
-            delay(1_500)
+            delay(500)
             ensureTmdb()
             loadMedia(Section.MOVIES, force = false)?.join()
             loadMedia(Section.SERIES, force = false)?.join()
@@ -591,7 +611,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (movies.isEmpty() && series.isEmpty()) return@launch
             val picks = TmdbMatcher.match(t, movies, series)
             _state.update { it.copy(picks = picks) }
+            runCatching { store.savePicks(picks) }
         }
+    }
+
+    private class ForYouInput(
+        val movies: VodCatalog,
+        val series: VodCatalog,
+        val fav: Set<String>,
+        val resume: List<ResumeEntry>,
+        val watched: Set<String>,
+    )
+
+    /** Titres de départ : ma liste, ce que j'ai repris et ce que j'ai terminé ; retrouvés dans le catalogue. */
+    private fun computeForYou(input: ForYouInput) {
+        val moviesById = input.movies.items.associateBy { it.id }
+        val seriesById = input.series.items.associateBy { it.id }
+        val seriesByName = input.series.items.associateBy { it.name }
+
+        val movieSeeds = LinkedHashMap<String, VodItem>()
+        val seriesSeeds = LinkedHashMap<String, VodItem>()
+        for (key in input.fav + input.watched) {
+            if (key.startsWith("m:")) moviesById[key.substring(2)]?.let { movieSeeds[it.id] = it }
+            if (key.startsWith("s:")) seriesById[key.substring(2)]?.let { seriesSeeds[it.id] = it }
+        }
+        for (e in input.resume) {
+            if (e.kind == "movie") moviesById[e.key.substringAfter(':')]?.let { movieSeeds[it.id] = it }
+            else seriesByName[e.title.substringBeforeLast(" · ", e.title)]?.let { seriesSeeds[it.id] = it }
+        }
+        val forMovies = ForYou.compute(input.movies.items, movieSeeds.values.toList(), movieSeeds.keys)
+        val forSeries = ForYou.compute(input.series.items, seriesSeeds.values.toList(), seriesSeeds.keys)
+        _state.update { it.copy(forYouMovies = forMovies, forYouSeries = forSeries) }
     }
 
     private fun setMediaLoading(section: Section, loading: Boolean) = _state.update {

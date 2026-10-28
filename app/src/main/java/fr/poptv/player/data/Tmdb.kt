@@ -3,6 +3,7 @@ package fr.poptv.player.data
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.text.Normalizer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -25,13 +26,17 @@ class TmdbTrends(
 )
 
 /** Un titre de TMDB retrouvé dans le catalogue du fournisseur. */
-class TmdbPick(val item: VodItem, val backdrop: String?, val overview: String?)
+@Serializable
+data class TmdbPick(val item: VodItem, val backdrop: String?, val overview: String?)
 
-class TmdbPicks(
+@Serializable
+data class TmdbPicks(
     val topMovies: List<TmdbPick> = emptyList(),
     val topSeries: List<TmdbPick> = emptyList(),
     /** Films « à l'affiche » avec une grande image, pour le bandeau. */
     val featured: List<TmdbPick> = emptyList(),
+    /** Séries tendance avec une grande image, pour le bandeau de l'écran Séries. */
+    val featuredSeries: List<TmdbPick> = emptyList(),
 )
 
 /**
@@ -163,6 +168,7 @@ object TmdbMatcher {
             topMovies = picks(trends.moviesWeek, movieIndex, 10),
             topSeries = picks(trends.seriesWeek, seriesIndex, 10),
             featured = featured,
+            featuredSeries = picks(trends.seriesWeek, seriesIndex, 12).filter { it.backdrop != null }.take(5),
         )
     }
 }
