@@ -429,8 +429,9 @@ private fun FeaturedHero(
     val compact = LocalCompact.current
     val meta = listOfNotNull(pick.item.year, ratingLabel(pick.item.rating)?.let { "★ $it" }).joinToString("  ·  ")
 
-    // Hauteur minimale, pas fixe : un titre sur deux lignes agrandit le bandeau au lieu d'être coupé.
-    Box(modifier = Modifier.fillMaxWidth().heightIn(min = if (compact) 150.dp else 280.dp)) {
+    // Hauteur fixe, dimensionnée pour le pire cas (titre sur 2 lignes + 2 lignes de résumé + bouton) :
+    // les rangées en dessous ne bougent pas quand le bandeau change de film.
+    Box(modifier = Modifier.fillMaxWidth().height(if (compact) 170.dp else 320.dp)) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
