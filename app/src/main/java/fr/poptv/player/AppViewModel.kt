@@ -17,6 +17,7 @@ import fr.poptv.player.data.Repository
 import fr.poptv.player.data.ResumeEntry
 import kotlinx.coroutines.flow.collectLatest
 import fr.poptv.player.data.ForYou
+import fr.poptv.player.data.ForYouCache
 import fr.poptv.player.data.Season
 import fr.poptv.player.data.Section
 import fr.poptv.player.data.TmdbClient
@@ -29,6 +30,9 @@ import fr.poptv.player.data.VodItem
 import fr.poptv.player.data.XtreamClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -190,6 +194,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             store.loadPicks()?.let { cached ->
                 _state.update { if (it.picks.topMovies.isEmpty() && it.picks.topSeries.isEmpty()) it.copy(picks = cached) else it }
+            }
+        }
+        viewModelScope.launch {
+            store.loadForYou()?.let { cached ->
+                _state.update {
+                    if (it.forYouMovies.isEmpty() && it.forYouSeries.isEmpty()) it.copy(forYouMovies = cached.movies, forYouSeries = cached.series) else it
+                }
             }
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
@@ -623,25 +634,116 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val watched: Set<String>,
     )
 
-    /** Titres de départ : ma liste, ce que j'ai repris et ce que j'ai terminé ; retrouvés dans le catalogue. */
+    private class Seed(val item: VodItem, val weight: Float)
+
+    private var forYouJob: kotlinx.coroutines.Job? = null
+    private val recCache = HashMap<String, List<fr.poptv.player.data.TmdbTitle>>()
+    private val tmdbIdCache = HashMap<String, Int>()
+    private var tmdbForYouMovies: List<VodItem> = emptyList()
+    private var tmdbForYouSeries: List<VodItem> = emptyList()
+
+    /**
+     * « Pour vous » : titres de départ pondérés par le comportement (ma liste, terminés, repris, abandonnés),
+     * puis recommandations de TMDB pour ces titres, retrouvées dans le catalogue. En attendant TMDB (ou sans clé),
+     * on propose des titres des mêmes catégories.
+     */
     private fun computeForYou(input: ForYouInput) {
+        val now = System.currentTimeMillis()
         val moviesById = input.movies.items.associateBy { it.id }
         val seriesById = input.series.items.associateBy { it.id }
         val seriesByName = input.series.items.associateBy { it.name }
 
-        val movieSeeds = LinkedHashMap<String, VodItem>()
-        val seriesSeeds = LinkedHashMap<String, VodItem>()
-        for (key in input.fav + input.watched) {
-            if (key.startsWith("m:")) moviesById[key.substring(2)]?.let { movieSeeds[it.id] = it }
-            if (key.startsWith("s:")) seriesById[key.substring(2)]?.let { seriesSeeds[it.id] = it }
+        val movieW = LinkedHashMap<String, Float>()
+        val seriesW = LinkedHashMap<String, Float>()
+        fun add(map: MutableMap<String, Float>, id: String, w: Float) { map.merge(id, w, Float::plus) }
+        for (key in input.fav) {
+            if (key.startsWith("m:")) add(movieW, key.substring(2), ForYou.seedWeight(true, false, null, null))
+            if (key.startsWith("s:")) add(seriesW, key.substring(2), ForYou.seedWeight(true, false, null, null))
+        }
+        for (key in input.watched) {
+            if (key.startsWith("m:")) add(movieW, key.substring(2), ForYou.seedWeight(false, true, null, null))
         }
         for (e in input.resume) {
-            if (e.kind == "movie") moviesById[e.key.substringAfter(':')]?.let { movieSeeds[it.id] = it }
-            else seriesByName[e.title.substringBeforeLast(" · ", e.title)]?.let { seriesSeeds[it.id] = it }
+            val progress = if (e.durationMs > 0) e.positionMs.toFloat() / e.durationMs else null
+            val age = if (e.updatedAt > 0) (now - e.updatedAt) / 86_400_000f else null
+            val w = ForYou.seedWeight(false, false, progress, age)
+            if (e.kind == "movie") add(movieW, e.key.substringAfter(':'), w)
+            else seriesByName[e.title.substringBeforeLast(" · ", e.title)]?.let { add(seriesW, it.id, w) }
         }
-        val forMovies = ForYou.compute(input.movies.items, movieSeeds.values.toList(), movieSeeds.keys)
-        val forSeries = ForYou.compute(input.series.items, seriesSeeds.values.toList(), seriesSeeds.keys)
-        _state.update { it.copy(forYouMovies = forMovies, forYouSeries = forSeries) }
+        val movieSeeds = movieW.mapNotNull { (id, w) -> moviesById[id]?.takeIf { w > 0f }?.let { Seed(it, w) } }
+        val seriesSeeds = seriesW.mapNotNull { (id, w) -> seriesById[id]?.takeIf { w > 0f }?.let { Seed(it, w) } }
+        // Ce qui est déjà vu, abandonné ou dans la liste n'est jamais re-proposé.
+        val movieSkip = movieW.keys
+        val seriesSkip = seriesW.keys
+
+        val fbMovies = ForYou.compute(input.movies.items, movieSeeds.map { it.item }, movieSkip)
+        val fbSeries = ForYou.compute(input.series.items, seriesSeeds.map { it.item }, seriesSkip)
+        publishForYou(fbMovies, fbSeries)
+
+        val key = tmdbKeyValue ?: return
+        forYouJob?.cancel()
+        forYouJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val m = if (movieSeeds.size >= 2) tmdbRecommended(key, movieSeeds, false, input.movies.items, movieSkip) else emptyList()
+                val s = if (seriesSeeds.size >= 2) tmdbRecommended(key, seriesSeeds, true, input.series.items, seriesSkip) else emptyList()
+                tmdbForYouMovies = m
+                tmdbForYouSeries = s
+                publishForYou(fbMovies, fbSeries)
+                val st = _state.value
+                runCatching { store.saveForYou(ForYouCache(st.forYouMovies, st.forYouSeries)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Pas de recommandations TMDB cette fois : les suggestions par catégorie restent affichées.
+            }
+        }
+    }
+
+    private fun publishForYou(fbMovies: List<VodItem>, fbSeries: List<VodItem>) {
+        val movies = (tmdbForYouMovies.take(14) + fbMovies).distinctBy { it.id }.take(20)
+        val series = (tmdbForYouSeries.take(14) + fbSeries).distinctBy { it.id }.take(20)
+        _state.update { it.copy(forYouMovies = movies, forYouSeries = series) }
+    }
+
+    /** Recommandations TMDB des 6 titres de départ les plus pesants, retrouvées dans le catalogue. */
+    private suspend fun tmdbRecommended(
+        key: String,
+        seeds: List<Seed>,
+        tv: Boolean,
+        catalog: List<VodItem>,
+        skip: Set<String>,
+    ): List<VodItem> = coroutineScope {
+        val top = seeds.sortedByDescending { it.weight }.take(6)
+        val gate = Semaphore(3)
+        val lists = top.map { seed ->
+            async { gate.withPermit { seed.weight to recsFor(key, seed.item, tv) } }
+        }.awaitAll()
+        val ranked = ForYou.rank(lists)
+        val index = TmdbMatcher.index(catalog)
+        val seen = HashSet<String>()
+        val out = ArrayList<VodItem>()
+        for (t in ranked) {
+            val item = TmdbMatcher.find(index, t) ?: continue
+            if (item.id in skip || !seen.add(item.id)) continue
+            out.add(item)
+            if (out.size >= 14) break
+        }
+        out
+    }
+
+    private fun recsFor(key: String, item: VodItem, tv: Boolean): List<fr.poptv.player.data.TmdbTitle> {
+        val cacheKey = (if (tv) "s:" else "m:") + item.id
+        recCache[cacheKey]?.let { return it }
+        return try {
+            val tmdbId = tmdbIdCache[cacheKey]
+                ?: TmdbClient.findId(key, TmdbMatcher.norm(item.name), item.year, tv)?.also { tmdbIdCache[cacheKey] = it }
+                ?: return emptyList()
+            TmdbClient.recommendations(key, tmdbId, tv).also { recCache[cacheKey] = it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     private fun setMediaLoading(section: Section, loading: Boolean) = _state.update {

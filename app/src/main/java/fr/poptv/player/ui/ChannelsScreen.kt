@@ -112,6 +112,7 @@ fun ChannelsScreen(
 
     // Le titre se masque quand on descend dans la liste.
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    val searchScope = androidx.compose.runtime.rememberCoroutineScope()
 
     AppShell(
         state = state,
@@ -120,6 +121,7 @@ fun ChannelsScreen(
         onSettings = onSettings,
         modifier = Modifier.appBackground(),
         headerVisible = gridMode || !scrolled,
+        onSearchRequest = { searchScope.launch { listState.scrollToItem(0) } },
     ) {
         CategoryTabs(state, onSelectCategory)
 

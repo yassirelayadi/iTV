@@ -135,6 +135,17 @@ class Store(private val context: Context) {
         context.dataStore.edit { it[keyPicks] = json.encodeToString(TmdbPicks.serializer(), picks) }
     }
 
+    // ---- Dernières suggestions « Pour vous » : affichées dès l'ouverture ----
+
+    private val keyForYou = stringPreferencesKey("foryou_cache")
+
+    suspend fun loadForYou(): ForYouCache? = context.dataStore.data.first()[keyForYou]
+        ?.let { runCatching { json.decodeFromString(ForYouCache.serializer(), it) }.getOrNull() }
+
+    suspend fun saveForYou(cache: ForYouCache) {
+        context.dataStore.edit { it[keyForYou] = json.encodeToString(ForYouCache.serializer(), cache) }
+    }
+
     // ---- Reprise de lecture (films et épisodes) ----
 
     private val keyResume = stringPreferencesKey("resume")

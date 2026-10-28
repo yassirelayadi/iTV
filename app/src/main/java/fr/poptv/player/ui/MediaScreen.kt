@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -47,6 +48,7 @@ import java.util.Locale
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -240,6 +242,7 @@ fun MediaScreen(
         onSettings = onSettings,
         modifier = Modifier.appBackground(tint),
         headerVisible = gridMode || !scrolled || catalog.items.isEmpty(),
+        onSearchRequest = { scope.launch { listState.scrollToItem(0) } },
         backdrop = if (featured.isNotEmpty() && !gridMode && catalog.items.isNotEmpty()) {
             { FeaturedBackdrop(featured[featIndex.coerceIn(0, featured.lastIndex)], listState) }
         } else {
@@ -277,6 +280,7 @@ fun MediaScreen(
                     onAction = { onQuery(""); onSelectCategory(CAT_ALL) },
                 )
             } else {
+                androidx.compose.runtime.CompositionLocalProvider(LocalRowId provides "__grid") {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = posterWidth()),
                     modifier = Modifier.fillMaxSize(),
@@ -295,6 +299,7 @@ fun MediaScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
+                }
                 }
             }
 
@@ -322,6 +327,17 @@ fun MediaScreen(
                         ResumeRow(resume, onResume, onFocusInfo)
                     }
                 }
+                if (top.size >= 3) {
+                    item(key = "top10") {
+                        TopRow(
+                            title = if (isMovies) "Top 10 des films cette semaine" else "Top 10 des séries cette semaine",
+                            picks = top,
+                            categoryNames = categoryNames,
+                            onOpen = onOpen,
+                            onFocusInfo = onFocusInfo,
+                        )
+                    }
+                }
                 if (favItems.isNotEmpty()) {
                     item(key = "favs") {
                         VodShelfRow(
@@ -341,17 +357,6 @@ fun MediaScreen(
                             categoryNames = categoryNames,
                             onOpen = onOpen,
                             onSeeAll = {},
-                            onFocusInfo = onFocusInfo,
-                        )
-                    }
-                }
-                if (top.size >= 3) {
-                    item(key = "top10") {
-                        TopRow(
-                            title = if (isMovies) "Top 10 des films cette semaine" else "Top 10 des séries cette semaine",
-                            picks = top,
-                            categoryNames = categoryNames,
-                            onOpen = onOpen,
                             onFocusInfo = onFocusInfo,
                         )
                     }
@@ -424,12 +429,13 @@ private fun FeaturedHero(
     val compact = LocalCompact.current
     val meta = listOfNotNull(pick.item.year, ratingLabel(pick.item.rating)?.let { "★ $it" }).joinToString("  ·  ")
 
-    Box(modifier = Modifier.fillMaxWidth().height(if (compact) 150.dp else 280.dp)) {
+    // Hauteur minimale, pas fixe : un titre sur deux lignes agrandit le bandeau au lieu d'être coupé.
+    Box(modifier = Modifier.fillMaxWidth().heightIn(min = if (compact) 150.dp else 280.dp)) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = ScreenPadding, bottom = 6.dp)
-                .fillMaxWidth(0.58f),
+                .padding(start = ScreenPadding, end = ScreenPadding, bottom = 6.dp)
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 10.dp),
         ) {
             Text(
@@ -444,15 +450,18 @@ private fun FeaturedHero(
                     .border(1.dp, GlassBorder, RoundedCornerShape(50))
                     .padding(horizontal = 12.dp, vertical = 4.dp),
             )
+            // Titre plus petit quand il est long, pour tenir sur deux lignes sans écraser le reste.
+            val longTitle = pick.item.name.length > 24
             Text(
                 pick.item.name,
                 color = TextPrimary,
-                fontSize = if (compact) 22.sp else 44.sp,
-                lineHeight = if (compact) 24.sp else 46.sp,
+                fontSize = if (compact) (if (longTitle) 18.sp else 22.sp) else (if (longTitle) 34.sp else 44.sp),
+                lineHeight = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 36.sp else 46.sp),
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.5).sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(0.7f),
             )
             if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 16.sp, fontWeight = FontWeight.Medium)
             if (!compact && pick.overview != null) {
@@ -463,13 +472,25 @@ private fun FeaturedHero(
                     lineHeight = 22.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+            val restoreTick = FocusMemory.tick.intValue
+            LaunchedEffect(restoreTick) {
+                if (FocusMemory.restore && FocusMemory.key == "__hero") {
+                    FocusMemory.restore = false
+                    runCatching { heroFocus.requestFocus() }
+                }
             }
             PrimaryButton(
                 text = "Voir la fiche",
-                onClick = { onOpen(pick.item) },
+                onClick = {
+                    FocusMemory.key = "__hero"
+                    onOpen(pick.item)
+                },
                 icon = Icons.Filled.PlayArrow,
-                modifier = Modifier.onFocusChanged {
+                modifier = Modifier.fillMaxWidth(if (compact) 0.6f else 0.34f).focusRequester(heroFocus).onFocusChanged {
                     onPausedChange(it.hasFocus)
                     if (it.hasFocus) {
                         onFocused()
@@ -506,6 +527,7 @@ private fun TopRow(
     onFocusInfo: (HeroInfo) -> Unit,
 ) {
     val compact = LocalCompact.current
+    androidx.compose.runtime.CompositionLocalProvider(LocalRowId provides "__top") {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle(title)
         LazyRow(
@@ -539,6 +561,7 @@ private fun TopRow(
                 }
             }
         }
+    }
     }
 }
 
@@ -579,6 +602,7 @@ private fun ResumeRow(
         val seen = HashSet<String>()
         entries.filter { e -> seen.add(resumeGroup(e)) }
     }
+    androidx.compose.runtime.CompositionLocalProvider(LocalRowId provides "__resume") {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle("Reprendre")
         LazyRow(
@@ -603,6 +627,7 @@ private fun ResumeRow(
             }
         }
     }
+    }
 }
 
 /** Clé de regroupement de « Reprendre » : une série = une entrée, un film = lui-même. */
@@ -623,6 +648,7 @@ private fun VodShelfRow(
 ) {
     val visible = remember(shelf.items) { if (shelf.id == SHELF_FAV) shelf.items else shelf.items.take(SHELF_LIMIT) }
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalRowId provides shelf.id) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle(shelf.title)
         LazyRow(
@@ -659,6 +685,7 @@ private fun VodShelfRow(
             }
         }
     }
+    }
 }
 
 /** Affiche (2:3 par défaut, 16:9 pour « Reprendre ») avec le titre dessous et, si fourni, une barre de progression. */
@@ -676,6 +703,15 @@ private fun PosterTile(
 ) {
     val favs = LocalVodFavs.current
     val isFav = favKey != null && (favs.prefix + favKey) in favs.keys
+    val memoryKey = LocalRowId.current + "|" + title + "|" + (poster ?: "")
+    val tileFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val restoreTick = FocusMemory.tick.intValue
+    LaunchedEffect(restoreTick) {
+        if (FocusMemory.restore && FocusMemory.key == memoryKey) {
+            FocusMemory.restore = false
+            runCatching { tileFocus.requestFocus() }
+        }
+    }
     var tileFocused by remember { mutableStateOf(false) }
     val titleColor by animateColorAsState(if (tileFocused) TextPrimary else TextSecondary, label = "titleColor")
 
@@ -687,8 +723,11 @@ private fun PosterTile(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         FocusItem(
-            onClick = onClick,
-            modifier = Modifier.fillMaxWidth().aspectRatio(aspect),
+            onClick = {
+                FocusMemory.key = memoryKey
+                onClick()
+            },
+            modifier = Modifier.fillMaxWidth().aspectRatio(aspect).focusRequester(tileFocus),
             focusScale = 1.08f,
             focusRing = true,
             onLongClick = favKey?.let { k -> { favs.toggle(favs.prefix + k) } },

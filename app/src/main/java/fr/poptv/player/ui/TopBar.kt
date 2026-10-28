@@ -49,6 +49,24 @@ internal object RailFocus {
     var pending = false
 }
 
+/**
+ * Mémorise la vignette ouverte (fiche, lecteur…) : au retour, elle reprend le focus de la télécommande
+ * au lieu de laisser celui-ci retomber sur le menu de gauche.
+ */
+internal object FocusMemory {
+    var key: String? = null
+    var restore = false
+    val tick = androidx.compose.runtime.mutableIntStateOf(0)
+
+    fun requestRestore() {
+        restore = true
+        tick.intValue++
+    }
+}
+
+/** Identifiant de la rangée en cours (distingue le même titre dans « Ma liste » et dans le Top 10). */
+internal val LocalRowId = androidx.compose.runtime.compositionLocalOf { "" }
+
 internal val ScreenPadding: androidx.compose.ui.unit.Dp
     @Composable get() = if (LocalCompact.current) 16.dp else 48.dp
 
@@ -65,6 +83,7 @@ fun AppShell(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
     headerVisible: Boolean = true,
+    onSearchRequest: (() -> Unit)? = null,
     backdrop: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -83,7 +102,11 @@ fun AppShell(
         SideRail(
             state = state,
             onSection = onSection,
-            onSearch = { searchOpen = true },
+            onSearch = {
+                searchOpen = true
+                // En bas de la liste, l'en-tête est masqué : on remonte pour afficher le champ.
+                onSearchRequest?.invoke()
+            },
             onSettings = onSettings,
             sectionFocus = sectionFocus,
         )

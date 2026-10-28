@@ -87,6 +87,21 @@ object TmdbClient {
             runCatching { titles(get(key, path, params + ("page" to page.toString())), tv) }.getOrDefault(emptyList())
         }
 
+    /** Identifiant TMDB d'un titre du catalogue (recherche par titre et année), ou null. */
+    fun findId(key: String, title: String, year: String?, tv: Boolean): Int? {
+        val params = buildMap {
+            put("query", title)
+            put("language", "fr-FR")
+            if (year != null) put(if (tv) "first_air_date_year" else "year", year)
+        }
+        val first = get(key, if (tv) "search/tv" else "search/movie", params).firstOrNull() as? JsonObject
+        return first?.str("id")?.toIntOrNull()
+    }
+
+    /** Titres que TMDB recommande à partir d'un titre (« si vous avez aimé… »). */
+    fun recommendations(key: String, id: Int, tv: Boolean): List<TmdbTitle> =
+        titles(get(key, "${if (tv) "tv" else "movie"}/$id/recommendations", mapOf("language" to "fr-FR")), tv)
+
     fun trends(key: String): TmdbTrends {
         val lang = mapOf("language" to "fr-FR")
         // La première requête valide la clé : si elle échoue, l'erreur remonte telle quelle.
@@ -125,7 +140,7 @@ object TmdbMatcher {
     private fun yearOf(raw: String, fallback: String?): String? =
         fallback?.takeIf { it.length == 4 } ?: yearRegex.find(raw)?.groupValues?.get(1)
 
-    private fun index(items: List<VodItem>): Map<String, List<VodItem>> {
+    fun index(items: List<VodItem>): Map<String, List<VodItem>> {
         val map = HashMap<String, MutableList<VodItem>>(items.size * 2)
         for (item in items) {
             val k = norm(item.name)
@@ -134,7 +149,7 @@ object TmdbMatcher {
         return map
     }
 
-    private fun find(index: Map<String, List<VodItem>>, t: TmdbTitle): VodItem? {
+    fun find(index: Map<String, List<VodItem>>, t: TmdbTitle): VodItem? {
         val candidates = listOf(t.title, t.originalTitle).map { norm(it) }.filter { it.isNotEmpty() }.distinct()
         for (c in candidates) {
             val found = index[c] ?: continue

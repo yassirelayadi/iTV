@@ -1,5 +1,10 @@
 package fr.poptv.player.data
 
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class ForYouCache(val movies: List<VodItem> = emptyList(), val series: List<VodItem> = emptyList())
+
 /**
  * Suggestions « Pour vous » : on repère les catégories (et l'époque) des titres que l'utilisateur a
  * ajoutés à sa liste, repris ou vus, puis on propose d'autres titres du catalogue qui s'en rapprochent,
@@ -44,5 +49,40 @@ object ForYou {
             if (out.size >= LIMIT) break
         }
         return out
+    }
+
+    /**
+     * Poids d'un titre de départ selon le comportement : ma liste (+3), terminé (+2), repris et bien avancé
+     * (+2), un peu avancé (+1), abandonné très tôt (−2,5). Les titres récents comptent plus que les anciens.
+     */
+    fun seedWeight(favorite: Boolean, watched: Boolean, progress: Float?, ageDays: Float?): Float {
+        var w = 0f
+        if (favorite) w += 3f
+        if (watched) w += 2f
+        if (progress != null) w += when {
+            progress >= 0.5f -> 2f
+            progress >= 0.1f -> 1f
+            else -> -2.5f
+        }
+        val recency = if (ageDays == null) 1f else (1f / (1f + ageDays / 45f)).coerceAtLeast(0.3f)
+        return w * recency
+    }
+
+    /**
+     * Classe les titres recommandés par TMDB : un titre recommandé par plusieurs titres de départ,
+     * ou par un titre à fort poids, ou en tête de liste, remonte. La note TMDB départage.
+     */
+    fun rank(recsBySeed: List<Pair<Float, List<TmdbTitle>>>): List<TmdbTitle> {
+        val scores = LinkedHashMap<String, Pair<TmdbTitle, Float>>()
+        for ((weight, recs) in recsBySeed) {
+            if (weight <= 0f) continue
+            recs.forEachIndexed { position, t ->
+                val k = t.title + "|" + t.year
+                val gain = weight * (1f - position / (recs.size + 5f)) + (t.rating?.toFloat() ?: 5f) / 10f * 0.5f
+                val old = scores[k]
+                scores[k] = t to ((old?.second ?: 0f) + gain)
+            }
+        }
+        return scores.values.sortedByDescending { it.second }.map { it.first }
     }
 }
