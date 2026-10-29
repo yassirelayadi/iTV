@@ -184,14 +184,10 @@ private fun App(viewModel: AppViewModel) {
             }
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = screen,
-                        transitionSpec = {
-                            (fadeIn(tween(220, easing = AppleEase)) togetherWith fadeOut(tween(140)))
-                                .using(SizeTransform(clip = false))
-                        },
-                        label = "screens",
-                    ) { target ->
+                    // Un seul écran à la fois (pas de fondu enchaîné qui garderait l'ancien écran caché :
+                    // la télécommande pourrait y perdre le curseur). Le nouvel écran apparaît en fondu.
+                    androidx.compose.runtime.key(screen) {
+                        val target = screen
                         when (target) {
                             0 -> ChannelsScreen(
                                 state = state,
