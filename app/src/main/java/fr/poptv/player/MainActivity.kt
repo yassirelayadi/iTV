@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import fr.poptv.player.ui.FocusMemory
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
@@ -82,6 +84,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun App(viewModel: AppViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -180,7 +183,7 @@ private fun App(viewModel: AppViewModel) {
                 detailWasOpen = detail != null
             }
             Box(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxSize().focusProperties { canFocus = detail == null }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = screen,
                         transitionSpec = {
@@ -227,6 +230,8 @@ private fun App(viewModel: AppViewModel) {
                 ) {
                     val shownDetail = lastDetail[0]
                     if (shownDetail != null) {
+                        // La fiche garde le curseur à l'intérieur : la télécommande ne peut pas aller dans la liste dessous.
+                        Box(modifier = Modifier.fillMaxSize().focusProperties { exit = { FocusRequester.Cancel } }.focusGroup()) {
                         DetailScreen(
                             detail = shownDetail,
                             resumeFor = { key -> state.resume.firstOrNull { it.key == key } },
@@ -239,6 +244,7 @@ private fun App(viewModel: AppViewModel) {
                             backdrop = (state.picks.featured + state.picks.topMovies + state.picks.topSeries + state.picks.featuredSeries)
                                 .firstOrNull { it.item.id == shownDetail.item.id }?.backdrop,
                         )
+                        }
                     }
                 }
             }
