@@ -124,7 +124,7 @@ object XtreamClient {
                 // Pas d'identifiants dans les données mises en cache : l'URL est complétée à la lecture.
                 streamUrl = LIVE_PREFIX + id,
                 logo = o.text("stream_icon"),
-                categoryId = o.str("category_id") ?: "",
+                categoryId = (o.str("category_id") ?: "").intern(),
                 epgId = o.text("epg_channel_id"),
             )
         }.distinctBy { it.id }
@@ -153,9 +153,9 @@ object XtreamClient {
                 id = id,
                 name = o.text("name") ?: id,
                 poster = o.text("stream_icon"),
-                categoryId = category,
-                ext = o.text("container_extension") ?: "mp4",
-                rating = o.text("rating"),
+                categoryId = category.intern(),
+                ext = (o.text("container_extension") ?: "mp4").intern(),
+                rating = o.text("rating")?.intern(),
                 added = o.str("added")?.toLongOrNull() ?: 0L,
             )
         }
@@ -242,9 +242,9 @@ object XtreamClient {
                 id = id,
                 name = o.text("name") ?: id,
                 poster = o.text("cover"),
-                categoryId = category,
-                year = (o.text("year") ?: o.text("releaseDate") ?: o.text("release_date"))?.take(4),
-                rating = o.text("rating"),
+                categoryId = category.intern(),
+                year = (o.text("year") ?: o.text("releaseDate") ?: o.text("release_date"))?.take(4)?.intern(),
+                rating = o.text("rating")?.intern(),
                 plot = o.text("plot"),
                 added = o.str("last_modified")?.toLongOrNull() ?: 0L,
             )

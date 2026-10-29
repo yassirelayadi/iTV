@@ -206,10 +206,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _state
-                .map { ForYouInput(it.movies, it.series, it.favVod, it.resume, it.watched) }
-                .distinctUntilChanged { a, b -> a.movies === b.movies && a.series === b.series && a.fav == b.fav && a.resume == b.resume && a.watched == b.watched }
+                .map { ForYouInput(it.moviesLoading || it.seriesLoading, it.movies, it.series, it.favVod, it.resume, it.watched) }
+                .distinctUntilChanged { a, b -> a.busy == b.busy && a.movies === b.movies && a.series === b.series && a.fav == b.fav && a.resume == b.resume && a.watched == b.watched }
                 .collectLatest { input ->
                     delay(400) // un calcul à la fois, après une courte pause (rafales de changements)
+                    if (input.busy) return@collectLatest // pas pendant un téléchargement de catalogue
                     // Les suggestions sont un bonus : une erreur de calcul ne doit jamais fermer l'appli.
                     try {
                         computeForYou(input)
@@ -553,6 +554,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } finally {
                 setMediaLoading(section, false)
+                // Le Top 10 et « Pour vous » se calculent une fois le chargement terminé.
+                recomputePicks()
             }
             }
         }
@@ -629,17 +632,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val t = trends ?: return
         picksJob?.cancel()
         picksJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            // Pause : si le catalogue change encore, on ne recalcule qu'une fois à la fin.
+            delay(700)
             val s = _state.value
-            val movies = s.allMovies.items.filter { it.categoryId !in s.hiddenMovies }
-            val series = s.allSeries.items.filter { it.categoryId !in s.hiddenSeries }
+            // Pas de gros calcul pendant qu'un catalogue se télécharge : il est relancé à la fin du chargement.
+            if (s.moviesLoading || s.seriesLoading) return@launch
+            val movies = s.movies.items
+            val series = s.series.items
             if (movies.isEmpty() && series.isEmpty()) return@launch
-            val picks = TmdbMatcher.match(t, movies, series)
-            _state.update { it.copy(picks = picks) }
-            runCatching { store.savePicks(picks) }
+            try {
+                val picks = TmdbMatcher.match(t, movies, series)
+                _state.update { it.copy(picks = picks) }
+                runCatching { store.savePicks(picks) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Pas de Top 10 cette fois (mémoire ou donnée inattendue) : l'appli continue.
+            }
         }
     }
 
     private class ForYouInput(
+        val busy: Boolean,
         val movies: VodCatalog,
         val series: VodCatalog,
         val fav: Set<String>,
@@ -732,7 +746,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             async { gate.withPermit { seed.weight to recsFor(key, seed.item, tv) } }
         }.awaitAll()
         val ranked = ForYou.rank(lists)
-        val index = TmdbMatcher.index(catalog)
+        val index = TmdbMatcher.indexCached(catalog)
         val seen = HashSet<String>()
         val out = ArrayList<VodItem>()
         for (t in ranked) {

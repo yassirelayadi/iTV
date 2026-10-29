@@ -125,20 +125,38 @@ object TmdbMatcher {
     private val tagRegex = Regex("""\[[^\]]*\]|\{[^\}]*\}""")
     private val yearRegex = Regex("""\(?\b((?:19|20)\d{2})\b\)?""")
     private val prefixRegex = Regex("""^\s*[A-Za-z]{2,3}\s*[|:\-]\s+""")
+    private val marksRegex = Regex("\\p{M}+")
+    private val nonAlnumRegex = Regex("[^a-z0-9]+")
     private val qualityRegex = Regex("""\b(multi|vf|vff|vo|vost|vostfr|truefrench|french|4k|uhd|fhd|hd|sd|hdr|bluray|webrip|web-dl|x264|x265|hevc)\b""")
 
     fun norm(raw: String): String {
         var s = raw.replace(tagRegex, " ")
         s = prefixRegex.replace(s, "")
         s = yearRegex.replace(s, " ")
-        s = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+        s = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(marksRegex, "")
         s = qualityRegex.replace(s, " ")
-        s = s.replace(Regex("[^a-z0-9]+"), " ").trim()
+        s = s.replace(nonAlnumRegex, " ").trim()
         return s
     }
 
     private fun yearOf(raw: String, fallback: String?): String? =
         fallback?.takeIf { it.length == 4 } ?: yearRegex.find(raw)?.groupValues?.get(1)
+
+    // Index du catalogue gardé tant que le catalogue ne change pas (2 entrées : films et séries) :
+    // le Top 10 et « Pour vous » ne le reconstruisent pas à chaque fois.
+    private val indexCache = ArrayList<Pair<List<VodItem>, Map<String, List<VodItem>>>>()
+
+    @Synchronized
+    fun indexCached(items: List<VodItem>): Map<String, List<VodItem>> {
+        indexCache.firstOrNull { it.first === items }?.let { return it.second }
+        val built = index(items)
+        indexCache.add(items to built)
+        while (indexCache.size > 2) indexCache.removeAt(0)
+        return built
+    }
+
+    @Synchronized
+    fun clearCache() = indexCache.clear()
 
     fun index(items: List<VodItem>): Map<String, List<VodItem>> {
         val map = HashMap<String, MutableList<VodItem>>(items.size * 2)
@@ -174,8 +192,8 @@ object TmdbMatcher {
     }
 
     fun match(trends: TmdbTrends, movies: List<VodItem>, series: List<VodItem>): TmdbPicks {
-        val movieIndex = index(movies)
-        val seriesIndex = index(series)
+        val movieIndex = indexCached(movies)
+        val seriesIndex = indexCached(series)
         val featured = picks(trends.moviesNow + trends.moviesWeek, movieIndex, 12)
             .filter { it.backdrop != null }
             .take(5)
