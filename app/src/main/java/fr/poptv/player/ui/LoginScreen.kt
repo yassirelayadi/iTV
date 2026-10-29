@@ -64,20 +64,12 @@ fun LoginScreen(
                 .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 16.dp)
                 .widthIn(max = 520.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(GlassFill)
-                .border(1.dp, GlassBorder, RoundedCornerShape(28.dp))
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 28.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             LogoText(size = 52.sp)
-            Text(
-                "Connecte ton abonnement IPTV pour commencer.",
-                color = TextSecondary,
-                textAlign = TextAlign.Center,
-            )
             Spacer(Modifier.height(8.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -96,17 +88,6 @@ fun LoginScreen(
                 MinimalField(
                     m3u, { m3u = it }, "URL de la playlist M3U", Modifier.fillMaxWidth(),
                     KeyboardType.Uri, imeAction = ImeAction.Done,
-                )
-            }
-
-            val address = (if (mode == "xtream") server else m3u).trim()
-            if (address.isNotEmpty() && !address.startsWith("https://")) {
-                Text(
-                    "Adresse en http : tes identifiants circulent sans chiffrement. " +
-                        "C'est courant en IPTV ; utilise https si ton fournisseur le propose.",
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
                 )
             }
 
