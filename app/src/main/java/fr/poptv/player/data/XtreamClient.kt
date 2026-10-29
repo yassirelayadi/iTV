@@ -65,8 +65,8 @@ object XtreamClient {
         creds: Credentials,
         action: String,
         params: Map<String, String> = emptyMap(),
-        transform: (JsonObject) -> T?,
         sink: ((T) -> Unit)? = null,
+        transform: (JsonObject) -> T?,
     ): List<T> {
         val base = normalizeServer(creds.server)
         val url = "$base/player_api.php".toHttpUrl().newBuilder()
@@ -151,7 +151,7 @@ object XtreamClient {
         skip: Set<String> = emptySet(),
         sink: ((VodItem) -> Unit)? = null,
     ): List<VodItem> =
-        streamArray(creds, "get_vod_streams", categoryParams(categoryId), transform = { o ->
+        streamArray(creds, "get_vod_streams", categoryParams(categoryId), sink) { o ->
             val category = o.str("category_id") ?: categoryId ?: ""
             if (category in skip) return@streamArray null
             val id = o.str("stream_id") ?: return@streamArray null
@@ -164,7 +164,7 @@ object XtreamClient {
                 rating = o.text("rating")?.intern(),
                 added = o.str("added")?.toLongOrNull() ?: 0L,
             )
-        }, sink = sink)
+        }
 
     /** Informations du compte (user_info) : statut, expiration, connexions. */
     fun accountInfo(creds: Credentials): AccountInfo {
@@ -245,7 +245,7 @@ object XtreamClient {
         skip: Set<String> = emptySet(),
         sink: ((VodItem) -> Unit)? = null,
     ): List<VodItem> =
-        streamArray(creds, "get_series", categoryParams(categoryId), transform = { o ->
+        streamArray(creds, "get_series", categoryParams(categoryId), sink) { o ->
             val category = o.str("category_id") ?: categoryId ?: ""
             if (category in skip) return@streamArray null
             val id = o.str("series_id") ?: return@streamArray null
@@ -259,7 +259,7 @@ object XtreamClient {
                 plot = o.text("plot"),
                 added = o.str("last_modified")?.toLongOrNull() ?: 0L,
             )
-        }, sink = sink)
+        }
 
     fun seriesInfo(creds: Credentials, id: String): Pair<DetailInfo, List<Season>> {
         val root = parseObject(api(creds, "get_series_info", mapOf("series_id" to id)))
