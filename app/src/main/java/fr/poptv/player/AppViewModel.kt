@@ -209,7 +209,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 .distinctUntilChanged { a, b -> a.movies === b.movies && a.series === b.series && a.fav == b.fav && a.resume == b.resume && a.watched == b.watched }
                 .collectLatest { input ->
                     delay(400) // un calcul à la fois, après une courte pause (rafales de changements)
-                    computeForYou(input)
+                    // Les suggestions sont un bonus : une erreur de calcul ne doit jamais fermer l'appli.
+                    try {
+                        computeForYou(input)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        // Pas de suggestions cette fois.
+                    }
                 }
         }
         viewModelScope.launch {
@@ -637,8 +644,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private class Seed(val item: VodItem, val weight: Float)
 
     private var forYouJob: kotlinx.coroutines.Job? = null
-    private val recCache = HashMap<String, List<fr.poptv.player.data.TmdbTitle>>()
-    private val tmdbIdCache = HashMap<String, Int>()
+    private val recCache = java.util.concurrent.ConcurrentHashMap<String, List<fr.poptv.player.data.TmdbTitle>>()
+    private val tmdbIdCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private var tmdbForYouMovies: List<VodItem> = emptyList()
     private var tmdbForYouSeries: List<VodItem> = emptyList()
 
