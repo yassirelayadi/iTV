@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -510,6 +511,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
         val job = viewModelScope.launch {
             setMediaLoading(section, true)
+            // Un seul catalogue est téléchargé et analysé à la fois : changer de section pendant un
+            // chargement ne doit pas lancer un deuxième gros traitement en parallèle (mémoire).
+            mediaGate.withLock {
             var fromCache = loaded
             if (!loaded) {
                 repo.loadCachedMedia(section)?.let {
@@ -550,6 +554,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 setMediaLoading(section, false)
             }
+            }
         }
         mediaJobs[section] = job
         job.invokeOnCompletion { if (mediaJobs[section] === job) mediaJobs.remove(section) }
@@ -557,6 +562,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val mediaJobs = mutableMapOf<Section, kotlinx.coroutines.Job>()
+    private val mediaGate = kotlinx.coroutines.sync.Mutex()
 
     private fun setCatalog(section: Section, catalog: VodCatalog) {
         _state.update {
