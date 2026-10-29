@@ -51,8 +51,6 @@ import java.net.UnknownHostException
 
 const val CAT_ALL = "__all"
 
-/** Un catalogue en cache de moins de 6 heures n'est pas retéléchargé. */
-private const val MEDIA_CACHE_TTL_MS = 6L * 60 * 60 * 1000
 const val CAT_FAV = "__fav"
 
 /** Lecture d'un film ou d'un épisode. key = "m:ID" (film) ou "e:ID" (épisode). */
@@ -136,7 +134,7 @@ private fun VodCatalog.without(hidden: Set<String>): VodCatalog =
     }
 
 /** Recalcule les listes visibles à partir des listes complètes et des catégories masquées. */
-private fun UiState.refiltered(): UiState = copy(
+internal fun UiState.refiltered(): UiState = copy(
     categories = if (hiddenLive.isEmpty()) allCategories else allCategories.filter { it.id !in hiddenLive },
     channels = if (hiddenLive.isEmpty()) allChannels else allChannels.filter { it.categoryId !in hiddenLive },
     movies = allMovies.without(hiddenMovies),
@@ -144,7 +142,7 @@ private fun UiState.refiltered(): UiState = copy(
 )
 
 /** Refiltre uniquement la section modifiée : un appui sur une catégorie ne doit pas tout recalculer. */
-private fun UiState.refilteredFor(section: Section): UiState = when (section) {
+internal fun UiState.refilteredFor(section: Section): UiState = when (section) {
     Section.LIVE -> copy(
         categories = if (hiddenLive.isEmpty()) allCategories else allCategories.filter { it.id !in hiddenLive },
         channels = if (hiddenLive.isEmpty()) allChannels else allChannels.filter { it.categoryId !in hiddenLive },
@@ -153,13 +151,13 @@ private fun UiState.refilteredFor(section: Section): UiState = when (section) {
     Section.SERIES -> copy(series = allSeries.without(hiddenSeries))
 }
 
-private fun UiState.hiddenOf(section: Section): Set<String> = when (section) {
+internal fun UiState.hiddenOf(section: Section): Set<String> = when (section) {
     Section.LIVE -> hiddenLive
     Section.MOVIES -> hiddenMovies
     Section.SERIES -> hiddenSeries
 }
 
-private fun UiState.withHidden(section: Section, ids: Set<String>): UiState = when (section) {
+internal fun UiState.withHidden(section: Section, ids: Set<String>): UiState = when (section) {
     Section.LIVE -> copy(hiddenLive = ids)
     Section.MOVIES -> copy(hiddenMovies = ids)
     Section.SERIES -> copy(hiddenSeries = ids)
@@ -182,14 +180,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var credentials: Credentials? = null
 
     // Listes M3U : épisodes par série et adresses de lecture, reconstruits à chaque chargement.
-    private var m3uEpisodes: Map<String, List<Episode>> = emptyMap()
-    private var m3uUrls: Map<String, String> = emptyMap()
-    private var queue: List<VodPlayback> = emptyList()
 
     // TMDB : la clé reste ici, en mémoire, et chiffrée sur disque ; elle n'entre jamais dans l'état affiché.
     private val tmdb = TmdbController(viewModelScope, _state, store, ::friendly)
+    private val vod = VodController(viewModelScope, _state, store, repo, { credentials }, ::friendly)
+    private val media = MediaLoader(viewModelScope, _state, repo, tmdb, { credentials }, ::friendly)
     private var preloadJob: kotlinx.coroutines.Job? = null
-    private var queueIndex = -1
 
     init {
         tmdb.start()
@@ -275,8 +271,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             store.credentials.first()?.let { load(it, firstLogin = false) }
         }
         val s = _state.value
-        if (s.allMovies.size > 0) loadMedia(Section.MOVIES, force = true)
-        if (s.allSeries.size > 0) loadMedia(Section.SERIES, force = true)
+        if (s.allMovies.size > 0) media.load(Section.MOVIES, force = true)
+        if (s.allSeries.size > 0) media.load(Section.SERIES, force = true)
     }
 
     private fun load(creds: Credentials, firstLogin: Boolean) {
@@ -322,8 +318,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 if (library != null) {
-                    m3uEpisodes = library.episodes
-                    m3uUrls = library.urls
+                    vod.m3uEpisodes = library.episodes
+                    vod.m3uUrls = library.urls
                 }
                 val live = library?.live ?: playlist
                 _state.update {
@@ -375,8 +371,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         preloadJob = viewModelScope.launch {
             delay(500)
             tmdb.ensureTmdb()
-            loadMedia(Section.MOVIES, force = false)?.join()
-            loadMedia(Section.SERIES, force = false)?.join()
+            media.load(Section.MOVIES, force = false)?.join()
+            media.load(Section.SERIES, force = false)?.join()
         }
     }
 
@@ -385,7 +381,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun selectSection(section: Section) {
         _state.update { it.copy(section = section, selectedCategory = CAT_ALL, query = "", mediaError = null) }
         if (section != Section.LIVE) {
-            loadMedia(section, force = false)
+            media.load(section, force = false)
             tmdb.ensureTmdb()
         }
     }
@@ -397,7 +393,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Recharge le catalogue de la section affichée (bouton « Réessayer » / « Actualiser » des états vides). */
     fun reloadMedia() {
         // L'erreur reste affichée pendant le rechargement : le bouton ne disparaît pas sous le doigt.
-        if (credentials?.type == "xtream") loadMedia(_state.value.section, force = true) else refresh()
+        if (credentials?.type == "xtream") media.load(_state.value.section, force = true) else refresh()
     }
 
     /** Ajoute ou retire un film (« m:id ») ou une série (« s:id ») de Ma liste. */
@@ -450,7 +446,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openCategories(section: Section) {
         _state.update { it.copy(manageSection = section) }
-        if (section != Section.LIVE) loadMedia(section, force = false)
+        if (section != Section.LIVE) media.load(section, force = false)
     }
 
     fun closeCategories() {
@@ -464,7 +460,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val s = _state.value
         for (section in listOf(Section.MOVIES, Section.SERIES)) {
             val catalog = if (section == Section.MOVIES) s.allMovies else s.allSeries
-            if (catalog.excluded.any { it !in s.hiddenOf(section) }) loadMedia(section, force = true)
+            if (catalog.excluded.any { it !in s.hiddenOf(section) }) media.load(section, force = true)
         }
     }
 
@@ -485,85 +481,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Catalogues films / séries ----
 
-    private fun loadMedia(section: Section, force: Boolean): kotlinx.coroutines.Job? {
-        val creds = credentials ?: return null
-        if (creds.type != "xtream") return null // M3U : le catalogue est déjà trié au chargement
-        val s = _state.value
-        val isMovies = section == Section.MOVIES
-        val loaded = (if (isMovies) s.allMovies else s.allSeries).size > 0
-        val busy = if (isMovies) s.moviesLoading else s.seriesLoading
-        // Un seul téléchargement à la fois par section : des appuis rapides (afficher / masquer des
-        // catégories) ne doivent pas lancer plusieurs téléchargements du catalogue en parallèle.
-        if (busy || mediaJobs[section]?.isActive == true || (loaded && !force)) return null
-
-        val job = viewModelScope.launch {
-            setMediaLoading(section, true)
-            // Un seul catalogue est téléchargé et analysé à la fois : changer de section pendant un
-            // chargement ne doit pas lancer un deuxième gros traitement en parallèle (mémoire).
-            mediaGate.withLock {
-            var fromCache = loaded
-            if (!loaded) {
-                val stored = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    if (CatalogDb.hasData(section)) CatalogDb.meta(section) else null
-                }
-                if (stored != null) {
-                    setCatalog(section, stored)
-                    fromCache = true
-                }
-            }
-            try {
-                // Cache récent : affichage immédiat, sans retélécharger tout le catalogue.
-                // « Actualiser » dans les réglages force le téléchargement. Si une catégorie
-                // a été réaffichée depuis, le cache ne la contient pas : on recharge.
-                val age = CatalogDb.ageMs(section)
-                val cachedNow = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
-                val missing = cachedNow.excluded.any { it !in _state.value.hiddenOf(section) }
-                if (!force && fromCache && !missing && age != null && age < MEDIA_CACHE_TTL_MS) return@launch
-
-                // Boucle : si des catégories sont réaffichées pendant le téléchargement, on recharge.
-                while (true) {
-                    val hidden = _state.value.hiddenOf(section)
-                    val catalog = repo.fetchMedia(creds, section, hidden)
-                    setCatalog(section, catalog)
-                    val unhiddenMeanwhile = hidden.any { it !in _state.value.hiddenOf(section) }
-                    if (!unhiddenMeanwhile) break
-                }
-                _state.update { it.copy(mediaError = null) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: OutOfMemoryError) {
-                _state.update { it.copy(mediaError = "Catalogue trop volumineux pour la mémoire de cet appareil.") }
-            } catch (e: Throwable) {
-                _state.update { st ->
-                    val empty = (if (isMovies) st.allMovies else st.allSeries).size == 0
-                    st.copy(mediaError = if (empty) friendly(e as? Exception ?: Exception(e.message)) else null)
-                }
-            } finally {
-                setMediaLoading(section, false)
-                // Le Top 10 et « Pour vous » se calculent une fois le chargement terminé.
-                tmdb.recomputePicks(immediate = true)
-            }
-            }
-        }
-        mediaJobs[section] = job
-        job.invokeOnCompletion { if (mediaJobs[section] === job) mediaJobs.remove(section) }
-        return job
-    }
-
-    private val mediaJobs = mutableMapOf<Section, kotlinx.coroutines.Job>()
-    private val mediaGate = kotlinx.coroutines.sync.Mutex()
-
-    private fun setCatalog(section: Section, catalog: VodCatalog) {
-        _state.update {
-            if (section == Section.MOVIES) {
-                it.copy(allMovies = catalog).refiltered()
-            } else {
-                it.copy(allSeries = catalog).refiltered()
-            }
-        }
-        tmdb.recomputePicks()
-    }
-
     // ---- TMDB : Top 10 et « À l'affiche » ----
 
     // ---- TMDB : Top 10 et « À l'affiche » ----
@@ -574,251 +491,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveTmdbKey(raw: String) = tmdb.saveTmdbKey(raw)
 
-    private fun setMediaLoading(section: Section, loading: Boolean) = _state.update {
-        if (section == Section.MOVIES) it.copy(moviesLoading = loading) else it.copy(seriesLoading = loading)
-    }
 
-    // ---- Pages de détail ----
+    // ---- Fiches et lecture des films et séries (VodController) ----
 
-    fun openMovie(item: VodItem) {
-        _state.update { it.copy(detail = Detail(item = item, isSeries = false)) }
-        val creds = credentials ?: return
-        if (creds.type != "xtream") {
-            updateDetail(item.id) { it.copy(info = DetailInfo(year = item.year), loading = false) }
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val info = repo.vodInfo(creds, item.id)
-                updateDetail(item.id) { it.copy(info = info, loading = false) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // Les détails sont facultatifs : la lecture reste possible.
-                updateDetail(item.id) { it.copy(loading = false) }
-            }
-        }
-    }
-
-    fun openSeries(item: VodItem) {
-        _state.update { it.copy(detail = Detail(item = item, isSeries = true)) }
-        val creds = credentials ?: return
-        if (creds.type != "xtream") {
-            val seasons = M3uClassifier.seasons(m3uEpisodes[item.id].orEmpty())
-            updateDetail(item.id) {
-                it.copy(
-                    seasons = seasons,
-                    loading = false,
-                    error = if (seasons.isEmpty()) "Aucun épisode disponible pour cette série." else null,
-                )
-            }
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val (info, seasons) = repo.seriesInfo(creds, item.id)
-                updateDetail(item.id) {
-                    it.copy(
-                        info = info,
-                        seasons = seasons,
-                        loading = false,
-                        error = if (seasons.isEmpty()) "Aucun épisode disponible pour cette série." else null,
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                updateDetail(item.id) { it.copy(loading = false, error = friendly(e)) }
-            }
-        }
-    }
-
-    fun closeDetail() = _state.update { it.copy(detail = null) }
-
-    private fun updateDetail(itemId: String, transform: (Detail) -> Detail) = _state.update { s ->
-        val d = s.detail
-        if (d != null && d.item.id == itemId) s.copy(detail = transform(d)) else s
-    }
-
-    // ---- Lecture des films et épisodes ----
-
-    private fun resumePosition(key: String): Long =
-        _state.value.resume.firstOrNull { it.key == key }?.positionMs ?: 0L
-
-    fun playMovie(fromStart: Boolean) {
-        val detail = _state.value.detail ?: return
-        val creds = credentials ?: return
-        val key = "m:${detail.item.id}"
-        queue = emptyList()
-        queueIndex = -1
-        _state.update {
-            it.copy(
-                vodPlaying = VodPlayback(
-                    key = key,
-                    kind = "movie",
-                    title = detail.item.name,
-                    url = detail.item.url ?: XtreamClient.movieUrl(creds, detail.item),
-                    ext = detail.item.ext,
-                    poster = detail.item.poster,
-                    startMs = if (fromStart) 0L else resumePosition(key),
-                    hasNext = false,
-                )
-            )
-        }
-    }
-
-    fun playEpisode(episode: Episode, siblings: List<Episode>, fromStart: Boolean = false) {
-        val detail = _state.value.detail ?: return
-        val creds = credentials ?: return
-        // La file de lecture couvre toutes les saisons : l'épisode suivant est proposé même en fin de saison.
-        val all = orderedEpisodes(detail.seasons, episode)
-        val list = if (all.any { it.id == episode.id }) all else siblings
-        startEpisodeQueue(creds, detail.item.name, detail.item.poster, list, episode, fromStart, null)
-    }
-
-    /** Épisodes de toutes les saisons, dans l'ordre (les spéciaux seulement si on regarde un spécial). */
-    private fun orderedEpisodes(seasons: List<Season>, current: Episode): List<Episode> =
-        seasons.filter { it.number != 0 || current.season == 0 }
-            .sortedBy { it.number }
-            .flatMap { it.episodes.sortedBy { e -> e.number } }
-
-    private fun startEpisodeQueue(
-        creds: Credentials,
-        seriesName: String,
-        poster: String?,
-        list: List<Episode>,
-        episode: Episode,
-        fromStart: Boolean,
-        startMs: Long?,
-    ) {
-        queue = list.map { ep ->
-            VodPlayback(
-                key = "e:${ep.id}",
-                kind = "episode",
-                title = "$seriesName · S${ep.season} E${ep.number}",
-                url = ep.url ?: XtreamClient.episodeUrl(creds, ep),
-                ext = ep.ext,
-                poster = poster,
-                startMs = 0L,
-                hasNext = false,
-                subtitle = ep.title,
-            )
-        }
-        queueIndex = list.indexOfFirst { it.id == episode.id }.coerceAtLeast(0)
-        val current = queue[queueIndex]
-        _state.update {
-            it.copy(
-                vodPlaying = current.copy(
-                    startMs = if (fromStart) 0L else startMs ?: resumePosition(current.key),
-                    hasNext = queueIndex < queue.lastIndex,
-                    next = nextLabel(),
-                )
-            )
-        }
-    }
-
-    /** Reprise d'un épisode depuis la rangée « Reprendre » : on reconstruit la série pour proposer la suite. */
-    private fun resumeEpisode(entry: ResumeEntry, creds: Credentials): Boolean {
-        val seriesName = entry.title.substringBeforeLast(" · ", "")
-        val item = CatalogDb.byName(Section.SERIES, seriesName) ?: return false
-        viewModelScope.launch {
-            val seasons = try {
-                if (creds.type == "xtream") repo.seriesInfo(creds, item.id).second
-                else M3uClassifier.seasons(m3uEpisodes[item.id].orEmpty())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                emptyList()
-            }
-            val key = entry.key.substringAfter(':')
-            val episode = seasons.flatMap { it.episodes }.firstOrNull { it.id == key }
-            if (episode == null) {
-                playResumeSimple(entry, creds)
-            } else {
-                startEpisodeQueue(creds, seriesName, entry.poster ?: item.poster, orderedEpisodes(seasons, episode), episode, false, entry.positionMs)
-            }
-        }
-        return true
-    }
-
-    fun playResume(entry: ResumeEntry) {
-        val creds = credentials ?: return
-        if (entry.kind == "episode" && resumeEpisode(entry, creds)) return
-        playResumeSimple(entry, creds)
-    }
-
-    private fun playResumeSimple(entry: ResumeEntry, creds: Credentials) {
-        queue = emptyList()
-        queueIndex = -1
-        _state.update {
-            it.copy(
-                vodPlaying = VodPlayback(
-                    key = entry.key,
-                    kind = entry.kind,
-                    title = entry.title,
-                    // L'URL est reconstruite avec les identifiants actuels : l'historique n'en contient pas.
-                    url = m3uUrls[entry.key.substringAfter(':')]
-                        ?: if (creds.type == "xtream") {
-                            XtreamClient.mediaUrl(creds, entry.kind, entry.key.substringAfter(':'), entry.ext)
-                        } else {
-                            return
-                        },
-                    ext = entry.ext,
-                    poster = entry.poster,
-                    startMs = entry.positionMs,
-                    hasNext = false,
-                )
-            )
-        }
-    }
-
-    /** « S1 E4  Titre de l'épisode » pour l'épisode qui suit celui en cours, ou null. */
-    private fun nextLabel(): String? {
-        val next = queue.getOrNull(queueIndex + 1) ?: return null
-        val number = next.title.substringAfterLast(" · ")
-        return listOfNotNull(number, next.subtitle).joinToString("  ")
-    }
-
-    /** Fin de lecture : épisode suivant s'il y en a un, sinon retour à l'écran précédent. */
-    fun onVodEnded() {
-        if (queueIndex in 0 until queue.lastIndex) {
-            queueIndex++
-            val next = queue[queueIndex]
-            _state.update {
-                it.copy(vodPlaying = next.copy(hasNext = queueIndex < queue.lastIndex, next = nextLabel()))
-            }
-        } else {
-            stopVod()
-        }
-    }
-
-    fun stopVod() {
-        queue = emptyList()
-        queueIndex = -1
-        _state.update { it.copy(vodPlaying = null) }
-    }
-
-    fun saveProgress(playback: VodPlayback, positionMs: Long, durationMs: Long) {
-        viewModelScope.launch {
-            if (durationMs > 0 && positionMs >= durationMs * 95 / 100) {
-                store.removeResume(playback.key)
-                store.markWatched(playback.key)
-            } else if (positionMs > 30_000) {
-                store.saveResume(
-                    ResumeEntry(
-                        key = playback.key,
-                        kind = playback.kind,
-                        title = playback.title,
-                        ext = playback.ext,
-                        poster = playback.poster,
-                        positionMs = positionMs,
-                        durationMs = durationMs,
-                        updatedAt = System.currentTimeMillis(),
-                    )
-                )
-            }
-        }
-    }
+    fun openMovie(item: VodItem) = vod.openMovie(item)
+    fun openSeries(item: VodItem) = vod.openSeries(item)
+    fun closeDetail() = vod.closeDetail()
+    fun playMovie(fromStart: Boolean) = vod.playMovie(fromStart)
+    fun playEpisode(episode: Episode, siblings: List<Episode>, fromStart: Boolean = false) = vod.playEpisode(episode, siblings, fromStart)
+    fun playResume(entry: ResumeEntry) = vod.playResume(entry)
+    fun onVodEnded() = vod.onVodEnded()
+    fun stopVod() = vod.stopVod()
+    fun saveProgress(playback: VodPlayback, positionMs: Long, durationMs: Long) = vod.saveProgress(playback, positionMs, durationMs)
 
     // ---- Chaînes en direct ----
 
