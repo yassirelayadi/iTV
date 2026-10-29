@@ -472,8 +472,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun closeSettings() = _state.update {
-        it.copy(settingsOpen = false, manageSection = null, selectedCategory = CAT_ALL, query = "")
+    fun closeSettings() {
+        val wasManaging = _state.value.manageSection != null
+        _state.update { it.copy(settingsOpen = false, manageSection = null, selectedCategory = CAT_ALL, query = "") }
+        if (wasManaging) reloadRestoredCategories()
     }
 
     fun openCategories(section: Section) {
@@ -483,7 +485,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeCategories() {
         _state.update { it.copy(manageSection = null) }
+        reloadRestoredCategories()
         recomputePicks() // le Top 10 tient compte des catégories masquées ou réaffichées
+    }
+
+    /** Catégories réaffichées pendant la gestion : leurs titres n'ont pas été téléchargés, on recharge une fois. */
+    private fun reloadRestoredCategories() {
+        val s = _state.value
+        for (section in listOf(Section.MOVIES, Section.SERIES)) {
+            val catalog = if (section == Section.MOVIES) s.allMovies else s.allSeries
+            if (catalog.excluded.any { it !in s.hiddenOf(section) }) loadMedia(section, force = true)
+        }
     }
 
     /** Masque (hidden = true) ou affiche (false) les catégories données pour une section. */
@@ -497,14 +509,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { store.setHidden(section, updated) }
         // Les catégories masquées ne sont pas téléchargées : en réafficher une demande de la charger.
         if (!hidden && section != Section.LIVE) {
-            // On attend la fin des clics avant de retélécharger : une seule fois, pas à chaque catégorie.
-            categoryReloadJob?.cancel()
-            categoryReloadJob = viewModelScope.launch {
-                delay(1_500)
-                val current = _state.value
-                val catalog = if (section == Section.MOVIES) current.allMovies else current.allSeries
-                if (catalog.excluded.any { it !in current.hiddenOf(section) }) loadMedia(section, force = true)
-            }
+            // Le retéléchargement se fera une seule fois, à la fermeture de l'écran (reloadRestoredCategories).
         }
     }
 
@@ -577,7 +582,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val mediaJobs = mutableMapOf<Section, kotlinx.coroutines.Job>()
     private val mediaGate = kotlinx.coroutines.sync.Mutex()
-    private var categoryReloadJob: kotlinx.coroutines.Job? = null
 
     private fun setCatalog(section: Section, catalog: VodCatalog) {
         _state.update {
