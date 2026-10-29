@@ -169,10 +169,22 @@ object TmdbMatcher {
         return map
     }
 
-    fun find(index: Map<String, List<VodItem>>, t: TmdbTitle): VodItem? {
-        val candidates = listOf(t.title, t.originalTitle).map { norm(it) }.filter { it.isNotEmpty() }.distinct()
+    /** Noms normalisés à chercher dans le catalogue pour un titre TMDB. */
+    fun normsOf(t: TmdbTitle): List<String> =
+        listOf(t.title, t.originalTitle).map { norm(it) }.filter { it.isNotEmpty() }.distinct()
+
+    /** Retrouve les titres TMDB dans la base du catalogue : une seule requête pour tous les noms. */
+    fun lookupIn(section: Section, titles: Collection<TmdbTitle>, hidden: Set<String>): (String) -> List<VodItem>? {
+        val found = CatalogDb.byNorms(section, titles.flatMap { normsOf(it) })
+        return { key -> found[key]?.filter { it.categoryId !in hidden }?.takeIf { it.isNotEmpty() } }
+    }
+
+    fun find(index: Map<String, List<VodItem>>, t: TmdbTitle): VodItem? = find(index::get, t)
+
+    fun find(index: (String) -> List<VodItem>?, t: TmdbTitle): VodItem? {
+        val candidates = normsOf(t)
         for (c in candidates) {
-            val found = index[c] ?: continue
+            val found = index(c) ?: continue
             val withYear = t.year?.toIntOrNull()?.let { y ->
                 found.firstOrNull { f -> yearOf(f.name, f.year)?.toIntOrNull()?.let { kotlin.math.abs(it - y) <= 1 } == true }
             }
@@ -181,7 +193,7 @@ object TmdbMatcher {
         return null
     }
 
-    private fun picks(list: List<TmdbTitle>, index: Map<String, List<VodItem>>, limit: Int): List<TmdbPick> {
+    private fun picks(list: List<TmdbTitle>, index: (String) -> List<VodItem>?, limit: Int): List<TmdbPick> {
         val used = HashSet<String>()
         val out = ArrayList<TmdbPick>()
         for (t in list) {
@@ -193,9 +205,10 @@ object TmdbMatcher {
         return out
     }
 
-    fun match(trends: TmdbTrends, movies: List<VodItem>, series: List<VodItem>): TmdbPicks {
-        val movieIndex = indexCached(movies)
-        val seriesIndex = indexCached(series)
+    fun match(trends: TmdbTrends, movies: List<VodItem>, series: List<VodItem>): TmdbPicks =
+        match(trends, indexCached(movies)::get, indexCached(series)::get)
+
+    fun match(trends: TmdbTrends, movieIndex: (String) -> List<VodItem>?, seriesIndex: (String) -> List<VodItem>?): TmdbPicks {
         val featured = picks(trends.moviesNow + trends.moviesWeek, movieIndex, 12)
             .filter { it.backdrop != null }
             .take(5)

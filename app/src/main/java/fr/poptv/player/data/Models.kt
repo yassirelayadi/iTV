@@ -75,7 +75,12 @@ data class VodCatalog(
     val items: List<VodItem> = emptyList(),
     /** Catégories masquées au moment du téléchargement : leurs éléments n'ont pas été chargés. */
     val excluded: List<String> = emptyList(),
-)
+    /** Nombre de titres par catégorie : les titres eux-mêmes sont dans la base (CatalogDb), pas en mémoire. */
+    val counts: Map<String, Int> = emptyMap(),
+) {
+    /** Nombre total de titres du catalogue. */
+    val size: Int get() = if (items.isNotEmpty()) items.size else counts.values.sum()
+}
 
 /** Position de lecture mémorisée, pour la rangée « Reprendre ». kind = "movie" ou "episode". */
 @Serializable

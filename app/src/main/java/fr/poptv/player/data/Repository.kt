@@ -86,49 +86,48 @@ class Repository(private val context: Context) {
         File(context.cacheDir, if (section == Section.MOVIES) "movies.json" else "series.json")
 
     /**
-     * Télécharge un catalogue en ignorant les catégories masquées. Peu de catégories affichées :
-     * une requête par catégorie (4 en parallèle) ; sinon un seul téléchargement dont on écarte
-     * les catégories masquées au fil de la lecture.
+     * Télécharge un catalogue dans la base (CatalogDb) en ignorant les catégories masquées, puis
+     * renvoie ses catégories et ses effectifs. Peu de catégories affichées : une requête par
+     * catégorie (4 en parallèle) ; sinon un seul téléchargement dont on écarte les catégories
+     * masquées au fil de la lecture. Les titres sont écrits au fil de l'eau, jamais gardés en entier.
      */
     suspend fun fetchMedia(creds: Credentials, section: Section, hidden: Set<String>): VodCatalog =
         withContext(Dispatchers.IO) {
             val movies = section == Section.MOVIES
             val categories = if (movies) XtreamClient.movieCategories(creds) else XtreamClient.seriesCategories(creds)
             val visible = categories.filter { it.id !in hidden }
-
-            fun load(categoryId: String?, skip: Set<String>) =
-                if (movies) XtreamClient.fetchMovies(creds, categoryId, skip)
-                else XtreamClient.fetchSeries(creds, categoryId, skip)
-
-            val items = if (hidden.isEmpty() || visible.size > PER_CATEGORY_LIMIT) {
-                load(null, hidden)
-            } else {
-                val gate = Semaphore(4)
-                coroutineScope {
-                    visible.map { category ->
-                        async { gate.withPermit { load(category.id, emptySet()) } }
-                    }.awaitAll().flatten()
+            val gen = CatalogDb.beginLoad(section)
+            val writer = CatalogDb.writer(section, gen)
+            try {
+                fun load(categoryId: String?, skip: Set<String>) {
+                    if (movies) XtreamClient.fetchMovies(creds, categoryId, skip, writer::add)
+                    else XtreamClient.fetchSeries(creds, categoryId, skip, writer::add)
                 }
+                if (hidden.isEmpty() || visible.size > PER_CATEGORY_LIMIT) {
+                    load(null, hidden)
+                } else {
+                    val gate = Semaphore(4)
+                    coroutineScope {
+                        visible.map { category ->
+                            async { gate.withPermit { load(category.id, emptySet()) } }
+                        }.awaitAll()
+                    }
+                }
+                writer.close()
+                CatalogDb.commit(section, gen, categories, categories.map { it.id }.filter { it in hidden })
+            } catch (e: Throwable) {
+                runCatching { writer.close() }
+                CatalogDb.abort(section, gen)
+                throw e
             }
-            VodCatalog(
-                categories = categories,
-                items = items.distinctBy { it.id },
-                excluded = categories.map { it.id }.filter { it in hidden },
-            )
+            CatalogDb.meta(section)
         }
 
-    suspend fun loadCachedMedia(section: Section): VodCatalog? = withContext(Dispatchers.IO) {
-        readCache(mediaFile(section)) { json.decodeFromStream(VodCatalog.serializer(), it) }
-    }
-
-    /** Ancienneté du cache d'un catalogue, ou null s'il n'existe pas. */
-    fun mediaCacheAgeMs(section: Section): Long? {
-        val file = mediaFile(section)
-        return if (file.exists()) System.currentTimeMillis() - file.lastModified() else null
-    }
-
-    suspend fun saveMediaCache(section: Section, catalog: VodCatalog) = withContext(Dispatchers.IO) {
-        writeCache(mediaFile(section)) { json.encodeToStream(VodCatalog.serializer(), catalog, it) }
+    fun clearCache() {
+        cacheFile.delete()
+        mediaFile(Section.MOVIES).delete()
+        mediaFile(Section.SERIES).delete()
+        CatalogDb.clear()
     }
 
     suspend fun vodInfo(creds: Credentials, id: String): DetailInfo = withContext(Dispatchers.IO) {
@@ -144,11 +143,5 @@ class Repository(private val context: Context) {
 
     suspend fun epg(creds: Credentials, channelId: String): List<Program> = withContext(Dispatchers.IO) {
         XtreamClient.shortEpg(creds, channelId)
-    }
-
-    fun clearCache() {
-        cacheFile.delete()
-        mediaFile(Section.MOVIES).delete()
-        mediaFile(Section.SERIES).delete()
     }
 }

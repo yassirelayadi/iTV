@@ -26,6 +26,7 @@ import fr.poptv.player.data.TmdbPicks
 import fr.poptv.player.data.TmdbTrends
 import fr.poptv.player.data.Store
 import fr.poptv.player.data.VodCatalog
+import fr.poptv.player.data.CatalogDb
 import fr.poptv.player.data.VodItem
 import fr.poptv.player.data.XtreamClient
 import kotlinx.coroutines.CancellationException
@@ -129,6 +130,8 @@ private fun VodCatalog.without(hidden: Set<String>): VodCatalog =
         VodCatalog(
             categories = categories.filter { it.id !in hidden },
             items = items.filter { it.categoryId !in hidden },
+            excluded = excluded,
+            counts = counts.filterKeys { it !in hidden },
         )
     }
 
@@ -238,10 +241,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // hors du fil principal : à l'ouverture de l'écran, elles sont déjà prêtes.
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             // Pas de calcul pendant la gestion des catégories : il se fait une fois, à la fermeture de l'écran.
-            _state.map { if (it.manageSection != null) null else it.movies }.distinctUntilChanged { a, b -> a === b }.collect { it?.let { c -> precomputeShelves(c, true) } }
+            _state.map { if (it.manageSection != null) null else it.movies to it.hiddenMovies }.distinctUntilChanged { a, b -> a?.first === b?.first }.collect { it?.let { (c, h) -> runCatching { precomputeShelves(c, h, true) } } }
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            _state.map { if (it.manageSection != null) null else it.series }.distinctUntilChanged { a, b -> a === b }.collect { it?.let { c -> precomputeShelves(c, false) } }
+            _state.map { if (it.manageSection != null) null else it.series to it.hiddenSeries }.distinctUntilChanged { a, b -> a?.first === b?.first }.collect { it?.let { (c, h) -> runCatching { precomputeShelves(c, h, false) } } }
         }
         viewModelScope.launch {
             store.favorites.collect { favs -> _state.update { it.copy(favorites = favs) } }
@@ -316,8 +319,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             store.credentials.first()?.let { load(it, firstLogin = false) }
         }
         val s = _state.value
-        if (s.allMovies.items.isNotEmpty()) loadMedia(Section.MOVIES, force = true)
-        if (s.allSeries.items.isNotEmpty()) loadMedia(Section.SERIES, force = true)
+        if (s.allMovies.size > 0) loadMedia(Section.MOVIES, force = true)
+        if (s.allSeries.size > 0) loadMedia(Section.SERIES, force = true)
     }
 
     private fun load(creds: Credentials, firstLogin: Boolean) {
@@ -351,6 +354,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (creds.type == "xtream") repo.saveCache(playlist)
                 // M3U : on sépare chaînes, films et séries d'après les adresses et les groupes.
                 val library = if (creds.type == "m3u") M3uClassifier.split(playlist) else null
+                // Films et séries M3U : écrits dans la base, l'écran ne garde que les catégories et les effectifs.
+                var movieMeta: VodCatalog? = null
+                var seriesMeta: VodCatalog? = null
+                if (library != null) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        CatalogDb.replace(Section.MOVIES, library.movies)
+                        CatalogDb.replace(Section.SERIES, library.series)
+                        movieMeta = CatalogDb.meta(Section.MOVIES)
+                        seriesMeta = CatalogDb.meta(Section.SERIES)
+                    }
+                }
                 if (library != null) {
                     m3uEpisodes = library.episodes
                     m3uUrls = library.urls
@@ -366,8 +380,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             creds.type == "xtream"
                         },
                         section = if (firstLogin) Section.LIVE else it.section,
-                        allMovies = library?.movies ?: if (firstLogin) VodCatalog() else it.allMovies,
-                        allSeries = library?.series ?: if (firstLogin) VodCatalog() else it.allSeries,
+                        allMovies = movieMeta ?: if (firstLogin) VodCatalog() else it.allMovies,
+                        allSeries = seriesMeta ?: if (firstLogin) VodCatalog() else it.allSeries,
                         hiddenLive = if (firstLogin) emptySet() else it.hiddenLive,
                         hiddenMovies = if (firstLogin) emptySet() else it.hiddenMovies,
                         hiddenSeries = if (firstLogin) emptySet() else it.hiddenSeries,
@@ -520,7 +534,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (creds.type != "xtream") return null // M3U : le catalogue est déjà trié au chargement
         val s = _state.value
         val isMovies = section == Section.MOVIES
-        val loaded = (if (isMovies) s.allMovies else s.allSeries).items.isNotEmpty()
+        val loaded = (if (isMovies) s.allMovies else s.allSeries).size > 0
         val busy = if (isMovies) s.moviesLoading else s.seriesLoading
         // Un seul téléchargement à la fois par section : des appuis rapides (afficher / masquer des
         // catégories) ne doivent pas lancer plusieurs téléchargements du catalogue en parallèle.
@@ -533,8 +547,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             mediaGate.withLock {
             var fromCache = loaded
             if (!loaded) {
-                repo.loadCachedMedia(section)?.let {
-                    setCatalog(section, it)
+                val stored = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    if (CatalogDb.hasData(section)) CatalogDb.meta(section) else null
+                }
+                if (stored != null) {
+                    setCatalog(section, stored)
                     fromCache = true
                 }
             }
@@ -542,7 +559,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Cache récent : affichage immédiat, sans retélécharger tout le catalogue.
                 // « Actualiser » dans les réglages force le téléchargement. Si une catégorie
                 // a été réaffichée depuis, le cache ne la contient pas : on recharge.
-                val age = repo.mediaCacheAgeMs(section)
+                val age = CatalogDb.ageMs(section)
                 val cachedNow = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
                 val missing = cachedNow.excluded.any { it !in _state.value.hiddenOf(section) }
                 if (!force && fromCache && !missing && age != null && age < MEDIA_CACHE_TTL_MS) return@launch
@@ -551,10 +568,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 while (true) {
                     val hidden = _state.value.hiddenOf(section)
                     val catalog = repo.fetchMedia(creds, section, hidden)
-                    repo.saveMediaCache(section, catalog)
-                    // Rien n'a changé : on évite de reconstruire tout l'écran.
-                    val current = _state.value.let { if (isMovies) it.allMovies else it.allSeries }
-                    if (catalog != current) setCatalog(section, catalog)
+                    setCatalog(section, catalog)
                     val unhiddenMeanwhile = hidden.any { it !in _state.value.hiddenOf(section) }
                     if (!unhiddenMeanwhile) break
                 }
@@ -565,7 +579,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(mediaError = "Catalogue trop volumineux pour la mémoire de cet appareil.") }
             } catch (e: Throwable) {
                 _state.update { st ->
-                    val empty = (if (isMovies) st.allMovies else st.allSeries).items.isEmpty()
+                    val empty = (if (isMovies) st.allMovies else st.allSeries).size == 0
                     st.copy(mediaError = if (empty) friendly(e as? Exception ?: Exception(e.message)) else null)
                 }
             } finally {
@@ -655,11 +669,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val s = _state.value
             // Pas de gros calcul pendant qu'un catalogue se télécharge : il est relancé à la fin du chargement.
             if (s.moviesLoading || s.seriesLoading) return@launch
-            val movies = s.movies.items
-            val series = s.series.items
-            if (movies.isEmpty() && series.isEmpty()) return@launch
+            if (s.movies.size == 0 && s.series.size == 0) return@launch
             try {
-                val picks = TmdbMatcher.match(t, movies, series)
+                val movieLookup = TmdbMatcher.lookupIn(Section.MOVIES, t.moviesNow + t.moviesWeek, s.hiddenMovies)
+                val seriesLookup = TmdbMatcher.lookupIn(Section.SERIES, t.seriesWeek, s.hiddenSeries)
+                val picks = TmdbMatcher.match(t, movieLookup, seriesLookup)
                 _state.update { it.copy(picks = picks) }
                 runCatching { store.savePicks(picks) }
             } catch (e: CancellationException) {
@@ -694,9 +708,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun computeForYou(input: ForYouInput) {
         val now = System.currentTimeMillis()
-        val moviesById = input.movies.items.associateBy { it.id }
-        val seriesById = input.series.items.associateBy { it.id }
-        val seriesByName = input.series.items.associateBy { it.name }
+        val hiddenMovies = _state.value.hiddenMovies
+        val hiddenSeries = _state.value.hiddenSeries
 
         val movieW = LinkedHashMap<String, Float>()
         val seriesW = LinkedHashMap<String, Float>()
@@ -713,24 +726,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val age = if (e.updatedAt > 0) (now - e.updatedAt) / 86_400_000f else null
             val w = ForYou.seedWeight(false, false, progress, age)
             if (e.kind == "movie") add(movieW, e.key.substringAfter(':'), w)
-            else seriesByName[e.title.substringBeforeLast(" · ", e.title)]?.let { add(seriesW, it.id, w) }
+            else CatalogDb.byName(Section.SERIES, e.title.substringBeforeLast(" · ", e.title))?.let { add(seriesW, it.id, w) }
         }
+        val moviesById = CatalogDb.byIds(Section.MOVIES, movieW.keys).associateBy { it.id }
+        val seriesById = CatalogDb.byIds(Section.SERIES, seriesW.keys).associateBy { it.id }
         val movieSeeds = movieW.mapNotNull { (id, w) -> moviesById[id]?.takeIf { w > 0f }?.let { Seed(it, w) } }
         val seriesSeeds = seriesW.mapNotNull { (id, w) -> seriesById[id]?.takeIf { w > 0f }?.let { Seed(it, w) } }
         // Ce qui est déjà vu, abandonné ou dans la liste n'est jamais re-proposé.
         val movieSkip = movieW.keys
         val seriesSkip = seriesW.keys
 
-        val fbMovies = ForYou.compute(input.movies.items, movieSeeds.map { it.item }, movieSkip)
-        val fbSeries = ForYou.compute(input.series.items, seriesSeeds.map { it.item }, seriesSkip)
+        // Candidats : seulement les catégories des titres de départ (le reste ne marque aucun point).
+        val fbMovies = ForYou.compute(
+            CatalogDb.candidates(Section.MOVIES, hiddenMovies, movieSeeds.map { it.item.categoryId }.toSet(), 6000),
+            movieSeeds.map { it.item }, movieSkip,
+        )
+        val fbSeries = ForYou.compute(
+            CatalogDb.candidates(Section.SERIES, hiddenSeries, seriesSeeds.map { it.item.categoryId }.toSet(), 6000),
+            seriesSeeds.map { it.item }, seriesSkip,
+        )
         publishForYou(fbMovies, fbSeries)
 
         val key = tmdbKeyValue ?: return
         forYouJob?.cancel()
         forYouJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val m = if (movieSeeds.size >= 2) tmdbRecommended(key, movieSeeds, false, input.movies.items, movieSkip) else emptyList()
-                val s = if (seriesSeeds.size >= 2) tmdbRecommended(key, seriesSeeds, true, input.series.items, seriesSkip) else emptyList()
+                val m = if (movieSeeds.size >= 2) tmdbRecommended(key, movieSeeds, false, hiddenMovies, movieSkip) else emptyList()
+                val s = if (seriesSeeds.size >= 2) tmdbRecommended(key, seriesSeeds, true, hiddenSeries, seriesSkip) else emptyList()
                 tmdbForYouMovies = m
                 tmdbForYouSeries = s
                 publishForYou(fbMovies, fbSeries)
@@ -755,7 +777,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         key: String,
         seeds: List<Seed>,
         tv: Boolean,
-        catalog: List<VodItem>,
+        hidden: Set<String>,
         skip: Set<String>,
     ): List<VodItem> = coroutineScope {
         val top = seeds.sortedByDescending { it.weight }.take(6)
@@ -764,7 +786,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             async { gate.withPermit { seed.weight to recsFor(key, seed.item, tv) } }
         }.awaitAll()
         val ranked = ForYou.rank(lists)
-        val index = TmdbMatcher.indexCached(catalog)
+        val index = TmdbMatcher.lookupIn(if (tv) Section.SERIES else Section.MOVIES, ranked, hidden)
         val seen = HashSet<String>()
         val out = ArrayList<VodItem>()
         for (t in ranked) {
@@ -937,7 +959,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Reprise d'un épisode depuis la rangée « Reprendre » : on reconstruit la série pour proposer la suite. */
     private fun resumeEpisode(entry: ResumeEntry, creds: Credentials): Boolean {
         val seriesName = entry.title.substringBeforeLast(" · ", "")
-        val item = _state.value.allSeries.items.firstOrNull { it.name == seriesName } ?: return false
+        val item = CatalogDb.byName(Section.SERIES, seriesName) ?: return false
         viewModelScope.launch {
             val seasons = try {
                 if (creds.type == "xtream") repo.seriesInfo(creds, item.id).second

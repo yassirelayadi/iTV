@@ -66,6 +66,7 @@ object XtreamClient {
         action: String,
         params: Map<String, String> = emptyMap(),
         transform: (JsonObject) -> T?,
+        sink: ((T) -> Unit)? = null,
     ): List<T> {
         val base = normalizeServer(creds.server)
         val url = "$base/player_api.php".toHttpUrl().newBuilder()
@@ -82,7 +83,7 @@ object XtreamClient {
             try {
                 body.byteStream().buffered().use { stream ->
                     for (element in json.decodeToSequence(stream, JsonObject.serializer(), DecodeSequenceMode.ARRAY_WRAPPED)) {
-                        transform(element)?.let { out.add(it) }
+                        transform(element)?.let { if (sink != null) sink(it) else out.add(it) }
                     }
                 }
             } catch (e: SerializationException) {
@@ -144,8 +145,13 @@ object XtreamClient {
      * Films d'une seule catégorie (categoryId) ou de tout le catalogue (null). Les catégories de
      * `skip` sont ignorées dès la lecture : elles ne sont jamais gardées en mémoire.
      */
-    fun fetchMovies(creds: Credentials, categoryId: String? = null, skip: Set<String> = emptySet()): List<VodItem> =
-        streamArray(creds, "get_vod_streams", categoryParams(categoryId)) { o ->
+    fun fetchMovies(
+        creds: Credentials,
+        categoryId: String? = null,
+        skip: Set<String> = emptySet(),
+        sink: ((VodItem) -> Unit)? = null,
+    ): List<VodItem> =
+        streamArray(creds, "get_vod_streams", categoryParams(categoryId), transform = { o ->
             val category = o.str("category_id") ?: categoryId ?: ""
             if (category in skip) return@streamArray null
             val id = o.str("stream_id") ?: return@streamArray null
@@ -158,7 +164,7 @@ object XtreamClient {
                 rating = o.text("rating")?.intern(),
                 added = o.str("added")?.toLongOrNull() ?: 0L,
             )
-        }
+        }, sink = sink)
 
     /** Informations du compte (user_info) : statut, expiration, connexions. */
     fun accountInfo(creds: Credentials): AccountInfo {
@@ -233,8 +239,13 @@ object XtreamClient {
 
     fun seriesCategories(creds: Credentials): List<Category> = categories(creds, "get_series_categories")
 
-    fun fetchSeries(creds: Credentials, categoryId: String? = null, skip: Set<String> = emptySet()): List<VodItem> =
-        streamArray(creds, "get_series", categoryParams(categoryId)) { o ->
+    fun fetchSeries(
+        creds: Credentials,
+        categoryId: String? = null,
+        skip: Set<String> = emptySet(),
+        sink: ((VodItem) -> Unit)? = null,
+    ): List<VodItem> =
+        streamArray(creds, "get_series", categoryParams(categoryId), transform = { o ->
             val category = o.str("category_id") ?: categoryId ?: ""
             if (category in skip) return@streamArray null
             val id = o.str("series_id") ?: return@streamArray null
@@ -248,7 +259,7 @@ object XtreamClient {
                 plot = o.text("plot"),
                 added = o.str("last_modified")?.toLongOrNull() ?: 0L,
             )
-        }
+        }, sink = sink)
 
     fun seriesInfo(creds: Credentials, id: String): Pair<DetailInfo, List<Season>> {
         val root = parseObject(api(creds, "get_series_info", mapOf("series_id" to id)))

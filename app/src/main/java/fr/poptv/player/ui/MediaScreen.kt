@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import fr.poptv.player.CAT_ALL
 import fr.poptv.player.UiState
+import fr.poptv.player.data.CatalogDb
 import fr.poptv.player.data.Category
 import fr.poptv.player.data.ResumeEntry
 import fr.poptv.player.data.Section
@@ -93,16 +94,20 @@ private var moviesShelves: Pair<VodCatalog, List<VodShelf>>? = null
 private var seriesShelves: Pair<VodCatalog, List<VodShelf>>? = null
 
 /**
- * Les rangées sont calculées une seule fois par catalogue et gardées en mémoire : en revenant d'une
- * fiche, l'écran se reconstruit sans refaire ces calculs (tris sur tout le catalogue).
+ * Les rangées sont lues dans la base (CatalogDb) une seule fois par catalogue et gardées en mémoire :
+ * en revenant d'une fiche, l'écran se reconstruit sans refaire ces requêtes. Chaque rangée ne contient
+ * que ses premiers titres, jamais le catalogue entier.
  */
 private val shelvesLock = Any()
 
-private fun shelvesFor(catalog: VodCatalog, isMovies: Boolean): List<VodShelf> {
+private fun cachedShelves(catalog: VodCatalog, isMovies: Boolean): List<VodShelf>? = synchronized(shelvesLock) {
+    (if (isMovies) moviesShelves else seriesShelves)?.takeIf { it.first === catalog }?.second
+}
+
+private fun shelvesFor(catalog: VodCatalog, hidden: Set<String>, isMovies: Boolean): List<VodShelf> {
     synchronized(shelvesLock) {
-        val cached = if (isMovies) moviesShelves else seriesShelves
-        if (cached != null && cached.first === catalog) return cached.second
-        val built = buildShelves(catalog)
+        cachedShelves(catalog, isMovies)?.let { return it }
+        val built = buildShelves(catalog, hidden, if (isMovies) Section.MOVIES else Section.SERIES)
         if (isMovies) moviesShelves = catalog to built else seriesShelves = catalog to built
         return built
     }
@@ -112,24 +117,19 @@ private fun shelvesFor(catalog: VodCatalog, isMovies: Boolean): List<VodShelf> {
  * Calcule les rangées d'un catalogue en arrière-plan, avant l'ouverture de l'écran :
  * à l'ouverture, elles sont déjà prêtes (le résultat est gardé pour ce catalogue précis).
  */
-fun precomputeShelves(catalog: VodCatalog, isMovies: Boolean) {
-    if (catalog.items.isNotEmpty()) shelvesFor(catalog, isMovies)
+fun precomputeShelves(catalog: VodCatalog, hidden: Set<String>, isMovies: Boolean) {
+    if (catalog.size > 0) shelvesFor(catalog, hidden, isMovies)
 }
 
-private fun buildShelves(catalog: VodCatalog): List<VodShelf> {
-    val byCategory = catalog.items.groupBy { it.categoryId }
-    return buildList {
-        val recent = catalog.items.filter { it.added > 0 }.sortedByDescending { it.added }.take(SHELF_LIMIT)
-        if (recent.size >= 5) add(VodShelf(SHELF_RECENT, "Ajouts récents", recent))
-        val top = catalog.items
-            .mapNotNull { item -> cleanRating(item.rating)?.replace(',', '.')?.toDoubleOrNull()?.takeIf { it > 0 }?.let { item to it } }
-            .sortedByDescending { it.second }
-            .take(SHELF_LIMIT)
-            .map { it.first }
-        if (top.size >= 5) add(VodShelf(SHELF_TOP, "Les mieux notés", top))
-        catalog.categories.forEach { category ->
-            byCategory[category.id]?.let { add(VodShelf(category.id, category.name, it)) }
-        }
+private fun buildShelves(catalog: VodCatalog, hidden: Set<String>, section: Section): List<VodShelf> = buildList {
+    val recent = CatalogDb.recent(section, hidden, SHELF_LIMIT)
+    if (recent.size >= 5) add(VodShelf(SHELF_RECENT, "Ajouts récents", recent))
+    val top = CatalogDb.top(section, hidden, SHELF_LIMIT)
+    if (top.size >= 5) add(VodShelf(SHELF_TOP, "Les mieux notés", top))
+    catalog.categories.forEach { category ->
+        // Un titre de plus que la limite : sert à savoir s'il faut proposer « Tout voir ».
+        val items = CatalogDb.inCategory(section, category.id, SHELF_LIMIT + 1)
+        if (items.isNotEmpty()) add(VodShelf(category.id, category.name, items))
     }
 }
 
@@ -170,7 +170,15 @@ fun MediaScreen(
     val categoryNames = remember(catalog) { catalog.categories.associate { it.id to it.name } }
 
     // Accueil : « Ajouts récents » et « Les mieux notés », puis une rangée par catégorie.
-    val shelves = remember(catalog) { shelvesFor(catalog, isMovies) }
+    val hidden = if (isMovies) state.hiddenMovies else state.hiddenSeries
+    val section = if (isMovies) Section.MOVIES else Section.SERIES
+    val shelvesState = androidx.compose.runtime.produceState<List<VodShelf>?>(cachedShelves(catalog, isMovies), catalog) {
+        if (value == null && catalog.size > 0) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { shelvesFor(catalog, hidden, isMovies) }
+        }
+    }
+    val shelvesReady = shelvesState.value != null || catalog.size == 0
+    val shelves = shelvesState.value ?: emptyList()
     // Préchargement des affiches des premières rangées : elles sont déjà en cache quand on défile.
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(shelves) {
@@ -187,22 +195,27 @@ fun MediaScreen(
     val top = if (isMovies) state.picks.topMovies else state.picks.topSeries
 
     val favPrefix = if (isMovies) "m:" else "s:"
-    val favItems = remember(catalog, state.favVod, favPrefix) {
-        catalog.items.filter { (favPrefix + it.id) in state.favVod }
+    val favItemsState = androidx.compose.runtime.produceState<List<VodItem>>(emptyList(), catalog, state.favVod, favPrefix) {
+        val ids = state.favVod.filter { it.startsWith(favPrefix) }.map { it.removePrefix(favPrefix) }
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            CatalogDb.byIds(section, ids).filter { it.categoryId !in hidden }
+        }
     }
+    val favItems = favItemsState.value
     val vodFavs = remember(state.favVod, favPrefix, onToggleFavorite) { VodFavs(state.favVod, favPrefix, onToggleFavorite) }
 
     val query = state.query.trim()
-    val gridMode = query.isNotEmpty() || state.selectedCategory != CAT_ALL || shelves.isEmpty()
+    val gridMode = query.isNotEmpty() || state.selectedCategory != CAT_ALL || (shelvesReady && shelves.isEmpty())
 
-    val gridItems = remember(catalog, state.selectedCategory, query) {
-        val base = if (state.selectedCategory == CAT_ALL) {
-            catalog.items
-        } else {
-            catalog.items.filter { it.categoryId == state.selectedCategory }
+    // Grille : requête dans la base, après une courte pause pendant la frappe (pas une requête par lettre).
+    val gridState = androidx.compose.runtime.produceState<List<VodItem>?>(null, catalog, state.selectedCategory, query, gridMode) {
+        if (!gridMode) return@produceState
+        if (query.isNotEmpty()) delay(250)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            CatalogDb.grid(section, hidden, state.selectedCategory.takeIf { it != CAT_ALL }, query, 5000)
         }
-        if (query.isEmpty()) base else base.filter { it.name.contains(query, ignoreCase = true) }
     }
+    val gridItems = gridState.value
 
     // Retour : quitte d'abord la catégorie ou la recherche, puis l'application.
     BackHandler(enabled = state.selectedCategory != CAT_ALL || state.query.isNotEmpty()) {
@@ -241,9 +254,9 @@ fun MediaScreen(
         onQuery = onQuery,
         onSettings = onSettings,
         modifier = Modifier.appBackground(tint),
-        headerVisible = gridMode || !scrolled || catalog.items.isEmpty(),
+        headerVisible = gridMode || !scrolled || catalog.size == 0,
         onSearchRequest = { scope.launch { listState.scrollToItem(0) } },
-        backdrop = if (featured.isNotEmpty() && !gridMode && catalog.items.isNotEmpty()) {
+        backdrop = if (featured.isNotEmpty() && !gridMode && catalog.size > 0) {
             { FeaturedBackdrop(featured[featIndex.coerceIn(0, featured.lastIndex)], listState) }
         } else {
             null
@@ -251,7 +264,7 @@ fun MediaScreen(
     ) {
 
         when {
-            catalog.items.isEmpty() -> when {
+            catalog.size == 0 -> when {
                 state.mediaError != null -> EmptyState(
                     icon = Icons.Filled.Warning,
                     title = "Impossible de charger le catalogue",
@@ -271,7 +284,11 @@ fun MediaScreen(
                 )
             }
 
-            gridMode -> if (gridItems.isEmpty()) {
+            !shelvesReady && !gridMode -> CatalogSkeleton()
+
+            gridMode -> if (gridItems == null) {
+                Box(Modifier.fillMaxSize())
+            } else if (gridItems.isEmpty()) {
                 EmptyState(
                     icon = Icons.Filled.Search,
                     title = "Aucun résultat",

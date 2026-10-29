@@ -72,8 +72,8 @@ fun CategoriesScreen(
     val counts = remember(section, state.allChannels, state.allMovies, state.allSeries) {
         when (section) {
             Section.LIVE -> state.allChannels.groupingBy { it.categoryId }.eachCount()
-            Section.MOVIES -> state.allMovies.items.groupingBy { it.categoryId }.eachCount()
-            Section.SERIES -> state.allSeries.items.groupingBy { it.categoryId }.eachCount()
+            Section.MOVIES -> state.allMovies.counts
+            Section.SERIES -> state.allSeries.counts
         }
     }
 

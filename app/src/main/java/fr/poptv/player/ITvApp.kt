@@ -12,6 +12,16 @@ import fr.poptv.player.data.Http
  * (souvent servies sans en-têtes de cache) sont quand même conservées, donc rechargées sans réseau.
  */
 class ITvApp : Application(), ImageLoaderFactory {
+    override fun onCreate() {
+        super.onCreate()
+        fr.poptv.player.data.CatalogDb.init(this)
+        // Anciens catalogues en JSON : remplacés par la base.
+        runCatching {
+            cacheDir.resolve("movies.json").delete()
+            cacheDir.resolve("series.json").delete()
+        }
+    }
+
     /** Le système manque de mémoire : on libère ce qui se recrée tout seul (images, index de titres). */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
