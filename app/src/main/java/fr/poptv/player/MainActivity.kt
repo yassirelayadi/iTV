@@ -99,10 +99,10 @@ private fun App(viewModel: AppViewModel) {
     val seriesList = rememberLazyListState()
 
     GlideScrolling {
-    when {
-        vodPlaying != null -> key(vodPlaying.key) {
+    when (val screen = state.screen) {
+        is Screen.VodPlayer -> key(screen.key) {
             VodPlayerScreen(
-                playback = vodPlaying,
+                playback = vodPlaying!!,
                 onProgress = viewModel::saveProgress,
                 onEnded = viewModel::onVodEnded,
                 onNext = viewModel::onVodEnded,
@@ -110,15 +110,15 @@ private fun App(viewModel: AppViewModel) {
             )
         }
 
-        playing != null -> PlayerScreen(
-            channel = playing,
+        Screen.LivePlayer -> PlayerScreen(
+            channel = playing!!,
             epg = epg[playing.id],
             onNeedEpg = viewModel::requestEpg,
             onZap = viewModel::zap,
             onBack = viewModel::stop,
         )
 
-        state.needsLogin -> LoginScreen(
+        Screen.Login -> LoginScreen(
             loading = state.loading,
             error = state.error,
             canCancel = state.allChannels.isNotEmpty(),
@@ -126,14 +126,14 @@ private fun App(viewModel: AppViewModel) {
             onCancel = viewModel::cancelLogin,
         )
 
-        state.loading && state.allChannels.isEmpty() -> Box(
+        Screen.Loading -> Box(
             modifier = Modifier.fillMaxSize().appBackground(),
             contentAlignment = Alignment.Center,
         ) {
             CircularProgressIndicator()
         }
 
-        state.tmdbOpen -> fr.poptv.player.ui.TmdbKeyScreen(
+        Screen.TmdbKey -> fr.poptv.player.ui.TmdbKeyScreen(
             configured = state.tmdbConfigured,
             usesDefault = state.tmdbUsesDefault,
             busy = state.tmdbBusy,
@@ -142,14 +142,14 @@ private fun App(viewModel: AppViewModel) {
             onBack = viewModel::closeTmdb,
         )
 
-        manageSection != null -> CategoriesScreen(
+        is Screen.Categories -> CategoriesScreen(
             state = state,
-            section = manageSection,
+            section = screen.section,
             onSetHidden = viewModel::setCategoriesHidden,
             onBack = viewModel::closeCategories,
         )
 
-        state.settingsOpen -> SettingsScreen(
+        Screen.Settings -> SettingsScreen(
             state = state,
             onOpenCategories = viewModel::openCategories,
             onRefresh = {
@@ -162,7 +162,7 @@ private fun App(viewModel: AppViewModel) {
             onBack = viewModel::closeSettings,
         )
 
-        else -> {
+        is Screen.Browse -> {
             // La liste reste affichée sous la fiche : on retrouve exactement la même position et la même
             // vignette (focus) au retour. La fiche est une couche par-dessus, avec zoom doux.
             val screen = when {
