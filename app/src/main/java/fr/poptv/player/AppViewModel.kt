@@ -206,7 +206,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _state
-                .map { ForYouInput(it.moviesLoading || it.seriesLoading, it.movies, it.series, it.favVod, it.resume, it.watched) }
+                .map { ForYouInput(it.moviesLoading || it.seriesLoading || it.manageSection != null, it.movies, it.series, it.favVod, it.resume, it.watched) }
                 .distinctUntilChanged { a, b -> a.busy == b.busy && a.movies === b.movies && a.series === b.series && a.fav == b.fav && a.resume == b.resume && a.watched == b.watched }
                 .collectLatest { input ->
                     delay(400) // un calcul à la fois, après une courte pause (rafales de changements)
@@ -237,10 +237,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Les rangées des écrans Films et Séries sont calculées dès que le catalogue change,
         // hors du fil principal : à l'ouverture de l'écran, elles sont déjà prêtes.
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            _state.map { it.movies }.distinctUntilChanged { a, b -> a === b }.collect { precomputeShelves(it, true) }
+            // Pas de calcul pendant la gestion des catégories : il se fait une fois, à la fermeture de l'écran.
+            _state.map { if (it.manageSection != null) null else it.movies }.distinctUntilChanged { a, b -> a === b }.collect { it?.let { c -> precomputeShelves(c, true) } }
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            _state.map { it.series }.distinctUntilChanged { a, b -> a === b }.collect { precomputeShelves(it, false) }
+            _state.map { if (it.manageSection != null) null else it.series }.distinctUntilChanged { a, b -> a === b }.collect { it?.let { c -> precomputeShelves(c, false) } }
         }
         viewModelScope.launch {
             store.favorites.collect { favs -> _state.update { it.copy(favorites = favs) } }
@@ -480,7 +481,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (section != Section.LIVE) loadMedia(section, force = false)
     }
 
-    fun closeCategories() = _state.update { it.copy(manageSection = null) }
+    fun closeCategories() {
+        _state.update { it.copy(manageSection = null) }
+        recomputePicks() // le Top 10 tient compte des catégories masquées ou réaffichées
+    }
 
     /** Masque (hidden = true) ou affiche (false) les catégories données pour une section. */
     fun setCategoriesHidden(section: Section, ids: Collection<String>, hidden: Boolean) {
@@ -493,8 +497,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { store.setHidden(section, updated) }
         // Les catégories masquées ne sont pas téléchargées : en réafficher une demande de la charger.
         if (!hidden && section != Section.LIVE) {
-            val catalog = _state.value.let { if (section == Section.MOVIES) it.allMovies else it.allSeries }
-            if (catalog.excluded.any { it in ids }) loadMedia(section, force = true)
+            // On attend la fin des clics avant de retélécharger : une seule fois, pas à chaque catégorie.
+            categoryReloadJob?.cancel()
+            categoryReloadJob = viewModelScope.launch {
+                delay(1_500)
+                val current = _state.value
+                val catalog = if (section == Section.MOVIES) current.allMovies else current.allSeries
+                if (catalog.excluded.any { it !in current.hiddenOf(section) }) loadMedia(section, force = true)
+            }
         }
     }
 
@@ -567,6 +577,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val mediaJobs = mutableMapOf<Section, kotlinx.coroutines.Job>()
     private val mediaGate = kotlinx.coroutines.sync.Mutex()
+    private var categoryReloadJob: kotlinx.coroutines.Job? = null
 
     private fun setCatalog(section: Section, catalog: VodCatalog) {
         _state.update {
