@@ -124,6 +124,17 @@ class Store(private val context: Context) {
         context.dataStore.edit { prefs -> Section.entries.forEach { prefs.remove(hiddenKey(it)) } }
     }
 
+    // ---- Tendances TMDB : gardées quelques heures, pour ne pas les redemander à chaque lancement ----
+
+    private val keyTrends = stringPreferencesKey("trends_cache")
+
+    suspend fun loadTrends(): TmdbTrends? = context.dataStore.data.first()[keyTrends]
+        ?.let { runCatching { json.decodeFromString(TmdbTrends.serializer(), it) }.getOrNull() }
+
+    suspend fun saveTrends(trends: TmdbTrends) {
+        context.dataStore.edit { it[keyTrends] = json.encodeToString(TmdbTrends.serializer(), trends) }
+    }
+
     // ---- Dernières sélections TMDB (Top 10 et bandeaux) : affichées dès l'ouverture ----
 
     private val keyPicks = stringPreferencesKey("picks_cache")

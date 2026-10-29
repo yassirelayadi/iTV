@@ -225,7 +225,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             store.tmdbKey.collect { own ->
                 val default = BuildConfig.TMDB_DEFAULT_KEY.takeIf { it.isNotBlank() }
                 tmdbKeyValue = own ?: default
-                trends = null
+                // Tendances déjà téléchargées (moins de 6 h) : disponibles tout de suite, sans réseau.
+                trends = store.loadTrends()?.takeIf { System.currentTimeMillis() - it.fetchedAt < 6 * 3_600_000L }
                 _state.update {
                     it.copy(tmdbConfigured = own != null, tmdbUsesDefault = own == null && default != null)
                 }
@@ -555,7 +556,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 setMediaLoading(section, false)
                 // Le Top 10 et « Pour vous » se calculent une fois le chargement terminé.
-                recomputePicks()
+                recomputePicks(immediate = true)
             }
             }
         }
@@ -618,8 +619,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             try {
-                trends = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TmdbClient.trends(key) }
-                recomputePicks()
+                val fresh = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TmdbClient.trends(key) }
+                trends = fresh
+                runCatching { store.saveTrends(fresh) }
+                recomputePicks(immediate = true)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -628,12 +631,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun recomputePicks() {
+    private fun recomputePicks(immediate: Boolean = false) {
         val t = trends ?: return
         picksJob?.cancel()
         picksJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             // Pause : si le catalogue change encore, on ne recalcule qu'une fois à la fin.
-            delay(700)
+            if (!immediate) delay(700)
             val s = _state.value
             // Pas de gros calcul pendant qu'un catalogue se télécharge : il est relancé à la fin du chargement.
             if (s.moviesLoading || s.seriesLoading) return@launch

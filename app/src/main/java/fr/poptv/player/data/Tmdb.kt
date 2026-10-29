@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 /** Un titre renvoyé par TMDB (tendances, à l'affiche). */
+@Serializable
 data class TmdbTitle(
     val title: String,
     val originalTitle: String,
@@ -18,6 +19,7 @@ data class TmdbTitle(
     val rating: Double?,
 )
 
+@Serializable
 class TmdbTrends(
     val moviesWeek: List<TmdbTitle>,
     val moviesNow: List<TmdbTitle>,
