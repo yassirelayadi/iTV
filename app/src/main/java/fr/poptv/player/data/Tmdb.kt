@@ -132,10 +132,13 @@ object TmdbMatcher {
     private val qualityRegex = Regex("""\b(multi|vf|vff|vo|vost|vostfr|truefrench|french|4k|uhd|fhd|hd|sd|hdr|bluray|webrip|web-dl|x264|x265|hevc)\b""")
 
     fun norm(raw: String): String {
-        var s = raw.replace(tagRegex, " ")
-        s = prefixRegex.replace(s, "")
-        s = yearRegex.replace(s, " ")
-        s = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(marksRegex, "")
+        // Les regex ne passent que si le titre contient de quoi les déclencher (100 000 titres à traiter).
+        var s = raw
+        if (s.indexOf('[') >= 0 || s.indexOf('{') >= 0) s = s.replace(tagRegex, " ")
+        if (s.indexOf('|') >= 0 || s.indexOf(':') >= 0 || s.indexOf('-') >= 0) s = prefixRegex.replace(s, "")
+        if (s.any { it.isDigit() }) s = yearRegex.replace(s, " ")
+        s = if (s.all { it.code < 128 }) s.lowercase()
+        else Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(marksRegex, "")
         s = qualityRegex.replace(s, " ")
         s = s.replace(nonAlnumRegex, " ").trim()
         return s

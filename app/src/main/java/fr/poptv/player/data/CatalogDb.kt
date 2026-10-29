@@ -18,6 +18,20 @@ object CatalogDb {
     private const val NAME = "catalog.db"
     private const val VERSION = 1
     private const val BATCH = 1000
+    private val INDEXES = listOf(
+        "CREATE INDEX IF NOT EXISTS vod_cat ON vod(section,gen,cat)",
+        "CREATE INDEX IF NOT EXISTS vod_norm ON vod(section,gen,norm)",
+        "CREATE INDEX IF NOT EXISTS vod_name ON vod(section,gen,name)",
+        "CREATE INDEX IF NOT EXISTS vod_added ON vod(section,gen,added)",
+        "CREATE INDEX IF NOT EXISTS vod_rating ON vod(section,gen,ratingNum)",
+    )
+    private val INDEX_NAMES = listOf("vod_cat", "vod_norm", "vod_name", "vod_added", "vod_rating")
+
+    /** Pendant un téléchargement les index secondaires sont retirés (insertion bien plus rapide) puis recréés une fois. */
+    @Volatile private var loading = 0
+
+    private fun dropIndexes() { for (n in INDEX_NAMES) db.execSQL("DROP INDEX IF EXISTS $n") }
+    private fun createIndexes() { for (sql in INDEXES) db.execSQL(sql) }
 
     private lateinit var helper: Helper
     private val gens = IntArray(2)
@@ -59,6 +73,8 @@ object CatalogDb {
 
     /** Catégories, catégories exclues du téléchargement et nombre de titres par catégorie (sans les titres). */
     fun meta(section: Section): VodCatalog {
+        // Index perdus si l'appli a été arrêtée en plein téléchargement.
+        if (loading == 0) createIndexes()
         val s = sec(section).toString()
         val g = gen(section).toString()
         val categories = ArrayList<Category>()
@@ -136,6 +152,8 @@ object CatalogDb {
         // Reste éventuel d'un téléchargement interrompu.
         db.execSQL("DELETE FROM vod WHERE section=? AND gen<>?", arrayOf<Any>(s, gen(section)))
         db.execSQL("DELETE FROM cats WHERE section=? AND gen<>?", arrayOf<Any>(s, gen(section)))
+        synchronized(this) { loading++ }
+        dropIndexes()
         return gen(section) + 1
     }
 
@@ -164,10 +182,17 @@ object CatalogDb {
         } finally {
             db.endTransaction()
         }
+        endLoad()
+    }
+
+    private fun endLoad() {
+        val last = synchronized(this) { --loading <= 0 }
+        if (last) createIndexes()
     }
 
     fun abort(section: Section, gen: Int) {
         db.execSQL("DELETE FROM vod WHERE section=? AND gen=?", arrayOf<Any>(sec(section), gen))
+        endLoad()
     }
 
     /** Catalogue déjà trié en mémoire (liste M3U) : on l'écrit d'un bloc. */
@@ -176,10 +201,13 @@ object CatalogDb {
         val w = writer(section, g)
         try {
             catalog.items.forEach { w.add(it) }
-        } finally {
             w.close()
+            commit(section, g, catalog.categories, catalog.excluded)
+        } catch (e: Throwable) {
+            runCatching { w.close() }
+            abort(section, g)
+            throw e
         }
-        commit(section, g, catalog.categories, catalog.excluded)
     }
 
     fun clear() {
@@ -296,12 +324,18 @@ object CatalogDb {
     // ---- Utilitaires ----
 
     private val marks = Regex("\\p{M}+")
-    private val nonAlnum = Regex("[^a-z0-9]+")
 
     /** Minuscules, sans accents ni ponctuation : sert à la recherche. */
     fun fold(raw: String): String {
-        val s = Normalizer.normalize(raw.lowercase(), Normalizer.Form.NFD).replace(marks, "")
-        return s.replace(nonAlnum, " ").trim()
+        val s = if (raw.all { it.code < 128 }) raw.lowercase()
+        else Normalizer.normalize(raw.lowercase(), Normalizer.Form.NFD).replace(marks, "")
+        val out = StringBuilder(s.length)
+        var space = true
+        for (ch in s) {
+            if ((ch in 'a'..'z') || (ch in '0'..'9')) { out.append(ch); space = false }
+            else if (!space) { out.append(' '); space = true }
+        }
+        return out.toString().trimEnd()
     }
 
     fun ratingValue(raw: String?): Double =
@@ -319,11 +353,7 @@ object CatalogDb {
                     "rating TEXT, ratingNum REAL, plot TEXT, added INTEGER, url TEXT)",
             )
             db.execSQL("CREATE UNIQUE INDEX vod_id ON vod(section,gen,id)")
-            db.execSQL("CREATE INDEX vod_cat ON vod(section,gen,cat)")
-            db.execSQL("CREATE INDEX vod_norm ON vod(section,gen,norm)")
-            db.execSQL("CREATE INDEX vod_name ON vod(section,gen,name)")
-            db.execSQL("CREATE INDEX vod_added ON vod(section,gen,added)")
-            db.execSQL("CREATE INDEX vod_rating ON vod(section,gen,ratingNum)")
+            for (sql in INDEXES) db.execSQL(sql)
             db.execSQL(
                 "CREATE TABLE cats(section INTEGER NOT NULL, gen INTEGER NOT NULL, id TEXT NOT NULL, name TEXT, " +
                     "pos INTEGER, excluded INTEGER, PRIMARY KEY(section,gen,id))",

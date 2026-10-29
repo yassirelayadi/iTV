@@ -237,6 +237,8 @@ private fun App(viewModel: AppViewModel) {
                             onPlayMovie = { fromStart -> viewModel.playMovie(fromStart) },
                             onPlayEpisode = { episode, siblings -> viewModel.playEpisode(episode, siblings) },
                             onBack = viewModel::closeDetail,
+                            categoryName = (if (shownDetail.isSeries) state.allSeries else state.allMovies)
+                                .categories.firstOrNull { it.id == shownDetail.item.categoryId }?.name,
                             backdrop = (state.picks.featured + state.picks.topMovies + state.picks.topSeries + state.picks.featuredSeries)
                                 .firstOrNull { it.item.id == shownDetail.item.id }?.backdrop,
                         )

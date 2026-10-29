@@ -508,7 +508,7 @@ private fun FeaturedHero(
                     onOpen(pick.item)
                 },
                 icon = Icons.Filled.PlayArrow,
-                modifier = Modifier.fillMaxWidth(if (compact) 0.6f else 0.34f).focusRequester(heroFocus).onFocusChanged {
+                modifier = Modifier.focusRequester(heroFocus).onFocusChanged {
                     onPausedChange(it.hasFocus)
                     if (it.hasFocus) {
                         onFocused()

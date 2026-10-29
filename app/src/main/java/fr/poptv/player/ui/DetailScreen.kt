@@ -85,6 +85,7 @@ fun DetailScreen(
     onPlayEpisode: (Episode, List<Episode>) -> Unit,
     onBack: () -> Unit,
     backdrop: String? = null,
+    categoryName: String? = null,
 ) {
     BackHandler(onBack = onBack)
 
@@ -128,6 +129,7 @@ fun DetailScreen(
     }
 
     val metaParts = listOfNotNull(
+        categoryName,
         info.year ?: item.year,
         prettyDuration(info.duration),
         info.genre,
