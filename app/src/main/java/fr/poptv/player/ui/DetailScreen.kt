@@ -238,7 +238,7 @@ fun DetailScreen(
                     }
                 } else {
                     when {
-                        detail.loading -> Text("Chargement des épisodes…", color = TextSecondary, fontWeight = FontWeight.Medium)
+                        detail.loading -> SkeletonLines(count = 3)
                         detail.error != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(Icons.Filled.Warning, contentDescription = null, tint = ErrorColor)
                             Text(detail.error, color = TextPrimary, fontWeight = FontWeight.Medium)
@@ -279,8 +279,8 @@ fun DetailScreen(
 
                             AnimatedVisibility(
                                 visible = seasonMenuOpen,
-                                enter = fadeIn(tween(240, easing = AppleEase)) + expandVertically(tween(300, easing = AppleEase)),
-                                exit = fadeOut(tween(160)) + shrinkVertically(tween(220, easing = AppleEase)),
+                                enter = fadeIn(tween(Dur.Normal, easing = AppleEase)) + expandVertically(tween(Dur.Normal, easing = AppleEase)),
+                                exit = fadeOut(tween(Dur.Fast, easing = AppleEase)) + shrinkVertically(tween(Dur.Normal, easing = AppleEase)),
                             ) {
                                 SeasonMenu(
                                     seasons = detail.seasons,
@@ -296,8 +296,8 @@ fun DetailScreen(
                             // Épisode sélectionné : titre et résumé, mis à jour au fil du focus.
                             AnimatedVisibility(
                                 visible = !seasonMenuOpen,
-                                enter = fadeIn(tween(240, easing = AppleEase)),
-                                exit = fadeOut(tween(120)),
+                                enter = fadeIn(tween(Dur.Normal, easing = AppleEase)),
+                                exit = fadeOut(tween(Dur.Fast, easing = AppleEase)),
                             ) {
                                 EpisodePanel(shown, fallbackPlot = plot)
                             }

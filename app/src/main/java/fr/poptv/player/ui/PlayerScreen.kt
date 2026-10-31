@@ -135,7 +135,7 @@ fun PlayerScreen(
                 } else {
                     reconnecting = false
                     buffering = false
-                    error = "Lecture impossible (${e.errorCodeName}). OK pour réessayer."
+                    error = "Impossible de lire cette chaîne (${e.errorCodeName})."
                 }
             }
         }
@@ -270,14 +270,21 @@ fun PlayerScreen(
         }
 
         error?.let {
-            Text(
-                it,
-                color = ErrorColor,
+            Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0xCC000000), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-            )
+                    .background(Color(0xCC000000), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 28.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(it, color = ErrorColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    if (LocalCompact.current) "Touche l'écran pour réessayer" else "OK : réessayer   ·   Haut / Bas : autre chaîne   ·   Retour : quitter",
+                    color = TextSecondary,
+                    fontSize = 15.sp,
+                )
+            }
         }
 
         AnimatedVisibility(

@@ -13,9 +13,16 @@ import androidx.compose.runtime.CompositionLocalProvider
  * défile en douceur (260 ms, démarrage vif, arrivée lente) en gardant une marge de 10 % autour de
  * l'élément, au lieu de le coller au bord de l'écran.
  */
+/** Durées des animations (ms) : trois valeurs pour toute l'appli, avec la même courbe (AppleEase). */
+object Dur {
+    const val Fast = 160
+    const val Normal = 260
+    const val Slow = 380
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 private object GlideSpec : BringIntoViewSpec {
-    override val scrollAnimationSpec: AnimationSpec<Float> = tween(260, easing = AppleEase)
+    override val scrollAnimationSpec: AnimationSpec<Float> = tween(Dur.Normal, easing = AppleEase)
 
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val margin = containerSize * 0.10f

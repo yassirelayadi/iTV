@@ -76,8 +76,8 @@ fun FocusItem(
         spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
         label = "focusScale",
     )
-    val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(220), label = "focusColor")
-    val elevation by animateDpAsState(if (focused) 10.dp else if (glow) 5.dp else 0.dp, tween(220), label = "focusShadow")
+    val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(Dur.Normal, easing = AppleEase), label = "focusColor")
+    val elevation by animateDpAsState(if (focused) 10.dp else if (glow) 5.dp else 0.dp, tween(Dur.Normal, easing = AppleEase), label = "focusShadow")
 
     Box(
         modifier = modifier
@@ -260,6 +260,31 @@ fun LiveBadge(modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.4.sp,
             maxLines = 1,
+        )
+    }
+}
+
+private val PlaceholderTones = listOf(0xFF1E2A3A, 0xFF2A2236, 0xFF22302B, 0xFF33292A, 0xFF2B2E3A, 0xFF30302A).map { Color(it) }
+private val langPrefix = Regex("^\\s*[A-Za-z]{2,3}\\s*[|:\\-]\\s+")
+
+/**
+ * Affiche absente ou qui ne se charge pas : un aplat discret (une teinte stable par titre) avec le titre,
+ * au lieu d'un carré vide. L'image, quand elle arrive, apparaît en fondu par-dessus.
+ */
+@Composable
+fun PosterPlaceholder(title: String, modifier: Modifier = Modifier) {
+    val tone = remember(title) { PlaceholderTones[(title.hashCode() and 0x7fffffff) % PlaceholderTones.size] }
+    val label = remember(title) { title.replace(langPrefix, "") }
+    Box(modifier = modifier.background(tone), contentAlignment = Alignment.Center) {
+        Text(
+            label,
+            color = Color(0xB3FFFFFF),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(10.dp),
         )
     }
 }

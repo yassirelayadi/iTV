@@ -324,7 +324,7 @@ fun MediaScreen(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
                 if (featured.isNotEmpty()) {
                     item(key = "featured") {
@@ -605,7 +605,8 @@ private fun ShelfTitle(text: String) {
     Text(
         text,
         fontSize = 24.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.ExtraBold,
+        letterSpacing = (-0.4).sp,
         color = TextPrimary,
         modifier = Modifier.padding(horizontal = ScreenPadding),
     )
@@ -764,20 +765,13 @@ private fun PosterTile(
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 )
             }
+            PosterPlaceholder(title, Modifier.fillMaxSize())
             if (poster != null) {
                 AsyncImage(
                     model = rememberImage(poster, 300, 450),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Text(
-                    title.take(2).uppercase(),
-                    color = TextSecondary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.align(Alignment.Center),
                 )
             }
             if (rating != null) {
@@ -813,7 +807,8 @@ private fun PosterTile(
         Text(
             title,
             color = titleColor,
-            fontSize = if (LocalCompact.current) 11.sp else 13.sp,
+            fontSize = if (LocalCompact.current) 13.sp else 15.sp,
+            fontWeight = FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp),

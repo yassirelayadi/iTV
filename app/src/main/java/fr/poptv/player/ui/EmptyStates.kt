@@ -137,3 +137,25 @@ fun CatalogSkeleton(modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Chargement d'une liste de lignes (épisodes) : barres qui pulsent doucement. */
+@Composable
+fun SkeletonLines(count: Int, modifier: Modifier = Modifier) {
+    val pulse by rememberInfiniteTransition(label = "lines").animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
+        label = "linesPulse",
+    )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        repeat(count) { i ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(if (i == count - 1) 0.5f else 0.8f)
+                    .height(18.dp)
+                    .alpha(pulse)
+                    .background(GlassBorder, RoundedCornerShape(6.dp)),
+            )
+        }
+    }
+}

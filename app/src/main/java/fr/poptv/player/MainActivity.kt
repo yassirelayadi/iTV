@@ -2,6 +2,7 @@ package fr.poptv.player
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import fr.poptv.player.ui.FocusMemory
 import androidx.compose.ui.focus.focusProperties
@@ -14,6 +15,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import fr.poptv.player.ui.AppleEase
+import fr.poptv.player.ui.Dur
 import fr.poptv.player.ui.GlideScrolling
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -74,7 +76,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Box(modifier = Modifier.fillMaxSize()) {
                         App(viewModel)
-                        AnimatedVisibility(visible = showSplash, exit = fadeOut(tween(450))) {
+                        AnimatedVisibility(visible = showSplash, exit = fadeOut(tween(Dur.Slow, easing = AppleEase))) {
                             SplashScreen()
                         }
                     }
@@ -175,6 +177,21 @@ private fun App(viewModel: AppViewModel) {
                 state.section == Section.MOVIES -> 1
                 else -> 2
             }
+            // Retour : depuis Films ou Séries on revient aux chaînes ; depuis les chaînes, un second appui rapide quitte.
+            // (Les écrans et la fiche, plus bas, ont leurs propres retours, prioritaires quand ils sont actifs.)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var lastBack by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+            val atRoot = detail == null && state.selectedCategory == CAT_ALL && state.query.isEmpty()
+            BackHandler(enabled = atRoot && state.section != Section.LIVE) { viewModel.selectSection(Section.LIVE) }
+            BackHandler(enabled = atRoot && state.section == Section.LIVE) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - lastBack < 2_000) {
+                    (context as? android.app.Activity)?.finish()
+                } else {
+                    lastBack = now
+                    android.widget.Toast.makeText(context, "Appuie encore sur Retour pour quitter", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
             val lastDetail = remember { arrayOfNulls<fr.poptv.player.data.Detail>(1) }
             if (detail != null) lastDetail[0] = detail
             // Retour d'une fiche : la vignette ouverte reprend le focus.
@@ -226,8 +243,8 @@ private fun App(viewModel: AppViewModel) {
                 }
                 AnimatedVisibility(
                     visible = detail != null,
-                    enter = fadeIn(tween(240, easing = AppleEase)) + scaleIn(tween(320, easing = AppleEase), initialScale = 0.94f),
-                    exit = fadeOut(tween(200)) + scaleOut(tween(260, easing = AppleEase), targetScale = 1.06f),
+                    enter = fadeIn(tween(Dur.Normal, easing = AppleEase)) + scaleIn(tween(Dur.Normal, easing = AppleEase), initialScale = 0.94f),
+                    exit = fadeOut(tween(Dur.Normal, easing = AppleEase)) + scaleOut(tween(Dur.Normal, easing = AppleEase), targetScale = 1.06f),
                 ) {
                     val shownDetail = lastDetail[0]
                     if (shownDetail != null) {

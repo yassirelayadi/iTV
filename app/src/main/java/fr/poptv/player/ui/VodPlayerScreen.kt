@@ -399,7 +399,7 @@ fun VodPlayerScreen(
             modifier = Modifier.align(Alignment.BottomStart),
         ) {
             val fraction = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
-            val barHeight by animateDpAsState(if (seeking) 12.dp else 5.dp, tween(150), label = "progressHeight")
+            val barHeight by animateDpAsState(if (seeking) 12.dp else 5.dp, tween(Dur.Fast, easing = AppleEase), label = "progressHeight")
             val remaining = (duration - position).coerceAtLeast(0L)
             val speed = player.playbackParameters.speed.coerceAtLeast(0.1f)
             val endClock = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -505,8 +505,8 @@ fun VodPlayerScreen(
         // Carte « Épisode suivant » pendant le générique.
         AnimatedVisibility(
             visible = inCredits && !panelOpen,
-            enter = fadeIn(tween(350, easing = AppleEase)) + slideInVertically(tween(450, easing = AppleEase)) { it / 3 },
-            exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 3 },
+            enter = fadeIn(tween(Dur.Slow, easing = AppleEase)) + slideInVertically(tween(Dur.Slow, easing = AppleEase)) { it / 3 },
+            exit = fadeOut(tween(Dur.Normal, easing = AppleEase)) + slideOutVertically(tween(Dur.Normal, easing = AppleEase)) { it / 3 },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = if (LocalCompact.current) 16.dp else 56.dp, bottom = if (LocalCompact.current) 110.dp else 150.dp),
         ) {
             NextEpisodeCard(
@@ -523,15 +523,15 @@ fun VodPlayerScreen(
         // Options : panneau latéral sur toute la hauteur.
         AnimatedVisibility(
             visible = panelOpen,
-            enter = fadeIn(tween(300, easing = AppleEase)),
-            exit = fadeOut(tween(220)),
+            enter = fadeIn(tween(Dur.Normal, easing = AppleEase)),
+            exit = fadeOut(tween(Dur.Normal, easing = AppleEase)),
         ) {
             Box(modifier = Modifier.fillMaxSize().background(Color(0x59000000)))
         }
         AnimatedVisibility(
             visible = panelOpen,
-            enter = fadeIn(tween(300, easing = AppleEase)) + slideInHorizontally(tween(420, easing = AppleEase)) { it / 2 },
-            exit = fadeOut(tween(200)) + slideOutHorizontally(tween(260)) { it / 2 },
+            enter = fadeIn(tween(Dur.Normal, easing = AppleEase)) + slideInHorizontally(tween(Dur.Slow, easing = AppleEase)) { it / 2 },
+            exit = fadeOut(tween(Dur.Normal, easing = AppleEase)) + slideOutHorizontally(tween(Dur.Normal, easing = AppleEase)) { it / 2 },
             modifier = Modifier.align(Alignment.CenterEnd),
         ) {
             val audio = audioOptions(player, tracks)
