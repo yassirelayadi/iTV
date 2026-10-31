@@ -429,6 +429,13 @@ private fun FeaturedBackdrop(pick: TmdbPick, listState: LazyListState) {
                 Brush.horizontalGradient(listOf(Color(0xE605080D), Color(0x7305080D), Color(0x1A05080D))),
             ),
         )
+        // Voile progressif dans l'image : il assombrit la zone du texte puis se fond avec l'image vers le bas,
+        // sans bord visible (il fait partie de l'image, qui s'estompe vers les rangées).
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(0f to Color.Transparent, 0.3f to Color(0x40000000), 0.55f to Color(0x8C000000), 1f to Color(0x8C000000)),
+            ),
+        )
     }
 }
 
@@ -448,13 +455,7 @@ private fun FeaturedHero(
 
     // Hauteur fixe, dimensionnée pour le pire cas (titre sur 2 lignes + 2 lignes de résumé + bouton) :
     // les rangées en dessous ne bougent pas quand le bandeau change de film.
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (compact) 170.dp else 320.dp)
-            // Dégradé noir sur le bas de l'image : le résumé reste lisible quelle que soit l'affiche.
-            .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Color(0x66000000), 1f to Color(0xE6000000))),
-    ) {
+    Box(modifier = Modifier.fillMaxWidth().height(if (compact) 170.dp else 320.dp)) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
