@@ -6,19 +6,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,8 +50,8 @@ import fr.poptv.player.data.EpgInfo
 import kotlinx.coroutines.delay
 
 /**
- * Liste des chaînes par-dessus le direct : on parcourt les autres chaînes (par catégorie ou favoris)
- * sans quitter la lecture. OK sur une chaîne la lance ; Droite ou Retour referme le panneau.
+ * Liste des chaînes par-dessus le direct, sur deux niveaux dans le même panneau : les chaînes de la catégorie
+ * en cours, et (Gauche) la liste verticale des catégories. OK lance une chaîne ; Droite ou Retour referme.
  */
 @Composable
 fun ChannelPanel(
@@ -65,6 +67,7 @@ fun ChannelPanel(
 ) {
     val compact = LocalCompact.current
     var selected by remember { mutableStateOf(if (categories.any { it.id == current.categoryId }) current.categoryId else CAT_ALL) }
+    var showCategories by remember { mutableStateOf(false) }
     val list = remember(selected, channels, favorites) {
         when (selected) {
             CAT_ALL -> channels
@@ -72,27 +75,39 @@ fun ChannelPanel(
             else -> channels.filter { it.categoryId == selected }
         }
     }
-    val chips = remember(categories, favorites) {
+    // Catégories avec leur nombre de chaînes : « Toutes », « Favoris », puis les catégories du fournisseur.
+    val entries = remember(categories, channels, favorites) {
+        val counts = channels.groupingBy { it.categoryId }.eachCount()
         buildList {
-            add(CAT_ALL to "Toutes")
-            if (favorites.isNotEmpty()) add(CAT_FAV to "Favoris")
-            categories.forEach { add(it.id to it.name) }
+            add(Triple(CAT_ALL, "Toutes les chaînes", channels.size))
+            val fav = channels.count { it.id in favorites }
+            if (fav > 0) add(Triple(CAT_FAV, "Favoris", fav))
+            categories.forEach { c -> counts[c.id]?.let { add(Triple(c.id, c.name, it)) } }
         }
     }
+    val selectedLabel = entries.firstOrNull { it.first == selected }?.second ?: "Toutes les chaînes"
     val listState = rememberLazyListState()
-    val chipsState = rememberLazyListState(initialFirstVisibleItemIndex = chips.indexOfFirst { it.first == selected }.coerceAtLeast(0))
+    val catState = rememberLazyListState()
     val currentFocus = remember { FocusRequester() }
-    val firstChipFocus = remember { FocusRequester() }
+    val firstFocus = remember { FocusRequester() }
+    val catFocus = remember { FocusRequester() }
+    val currentInList = list.any { it.id == current.id }
 
-    // À l'ouverture : la chaîne en cours est visible et sélectionnée.
-    LaunchedEffect(Unit) {
-        val i = list.indexOfFirst { it.id == current.id }
-        if (i >= 0) {
-            listState.scrollToItem((i - 2).coerceAtLeast(0))
+    // Retour : depuis les catégories, on revient aux chaînes (le panneau reste ouvert).
+    BackHandler(enabled = showCategories) { showCategories = false }
+
+    // À chaque changement de niveau : l'élément utile est visible et a le focus.
+    LaunchedEffect(showCategories) {
+        if (showCategories) {
+            val i = entries.indexOfFirst { it.first == selected }.coerceAtLeast(0)
+            catState.scrollToItem((i - 2).coerceAtLeast(0))
             delay(80)
-            runCatching { currentFocus.requestFocus() }
+            runCatching { catFocus.requestFocus() }
         } else {
-            runCatching { firstChipFocus.requestFocus() }
+            val i = list.indexOfFirst { it.id == current.id }
+            listState.scrollToItem(if (i >= 0) (i - 2).coerceAtLeast(0) else 0)
+            delay(80)
+            runCatching { if (i >= 0) currentFocus.requestFocus() else firstFocus.requestFocus() }
         }
     }
 
@@ -103,93 +118,142 @@ fun ChannelPanel(
             .background(Color(0xE60A0C10))
             .padding(top = 20.dp, bottom = 12.dp)
             .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-                    onClose()
-                    true
-                } else {
-                    false
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> if (!showCategories) { showCategories = true; true } else false
+                    Key.DirectionRight -> { if (showCategories) showCategories = false else onClose(); true }
+                    else -> false
                 }
             },
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            "Chaînes",
-            color = TextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(horizontal = 20.dp),
-        )
-        LazyRow(
-            state = chipsState,
-            contentPadding = PaddingValues(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .clickable { showCategories = !showCategories },
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            items(chips, key = { it.first }) { (id, label) ->
-                Pill(
-                    text = label,
-                    onClick = { selected = id },
-                    selected = id == selected,
-                    modifier = if (id == chips.first().first) Modifier.focusRequester(firstChipFocus) else Modifier,
-                )
-            }
+            Text(
+                if (showCategories) "Catégories" else selectedLabel,
+                color = TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (showCategories) "OK : choisir   ·   Droite : retour" else "Gauche : changer de catégorie",
+                color = TextSecondary,
+                fontSize = 13.sp,
+            )
         }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(list, key = { it.id }) { channel ->
-                val isCurrent = channel.id == current.id
-                LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
-                FocusItem(
-                    onClick = { onPick(channel, list) },
-                    modifier = Modifier.fillMaxWidth().then(if (isCurrent) Modifier.focusRequester(currentFocus) else Modifier),
-                    shape = RoundedCornerShape(10.dp),
-                    focusScale = 1f,
-                    idleColor = if (isCurrent) GlassFill else Color.Transparent,
-                    focusedColor = Color.White,
-                ) { focused ->
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(Surface1),
-                            contentAlignment = Alignment.Center,
+        if (showCategories) {
+            LazyColumn(
+                state = catState,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(entries, key = { it.first }) { (id, label, count) ->
+                    val isSelected = id == selected
+                    FocusItem(
+                        onClick = { selected = id; showCategories = false },
+                        modifier = Modifier.fillMaxWidth().then(if (isSelected) Modifier.focusRequester(catFocus) else Modifier),
+                        shape = RoundedCornerShape(10.dp),
+                        focusScale = 1f,
+                        idleColor = if (isSelected) GlassFill else Color.Transparent,
+                        focusedColor = Color.White,
+                    ) { focused ->
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            if (channel.logo != null) {
-                                AsyncImage(
-                                    model = rememberImage(channel.logo, 128, 128),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                channel.name,
+                                label,
                                 color = if (focused) Color.Black else TextPrimary,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
                             )
-                            val program = epg[channel.id]?.now(System.currentTimeMillis() / 1000)?.title
-                            if (program != null) {
+                            Text(
+                                count.toString(),
+                                color = if (focused) Color(0xFF444B55) else TextSecondary,
+                                fontSize = 13.sp,
+                            )
+                            if (isSelected) {
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Accent))
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                itemsIndexed(list, key = { _, c -> c.id }) { index, channel ->
+                    val isCurrent = channel.id == current.id
+                    LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
+                    val requester = when {
+                        isCurrent -> Modifier.focusRequester(currentFocus)
+                        index == 0 && !currentInList -> Modifier.focusRequester(firstFocus)
+                        else -> Modifier
+                    }
+                    FocusItem(
+                        onClick = { onPick(channel, list) },
+                        modifier = Modifier.fillMaxWidth().then(requester),
+                        shape = RoundedCornerShape(10.dp),
+                        focusScale = 1f,
+                        idleColor = if (isCurrent) GlassFill else Color.Transparent,
+                        focusedColor = Color.White,
+                    ) { focused ->
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(Surface1),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (channel.logo != null) {
+                                    AsyncImage(
+                                        model = rememberImage(channel.logo, 128, 128),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    program,
-                                    color = if (focused) Color(0xFF444B55) else TextSecondary,
-                                    fontSize = 13.sp,
+                                    channel.name,
+                                    color = if (focused) Color.Black else TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                val program = epg[channel.id]?.now(System.currentTimeMillis() / 1000)?.title
+                                if (program != null) {
+                                    Text(
+                                        program,
+                                        color = if (focused) Color(0xFF444B55) else TextSecondary,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
-                        }
-                        if (isCurrent) {
-                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Accent))
+                            if (isCurrent) {
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Accent))
+                            }
                         }
                     }
                 }
