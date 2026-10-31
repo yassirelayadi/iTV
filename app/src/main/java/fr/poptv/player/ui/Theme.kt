@@ -38,8 +38,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 // Fond : dégradé graphite, plus clair en haut. Il prend une teinte de l'affiche sélectionnée.
-val BgTop = Color(0xFF0C0E11)
-val BgBottom = Color(0xFF0C0E11)
+val BgTop = Color(0xFF1A2029)
+val BgBottom = Color(0xFF05070A)
 val Bg = BgBottom
 val Surface1 = Color(0xFF17212D)
 val Surface2 = Color(0xFF263444)
@@ -137,12 +137,59 @@ fun PopTheme(content: @Composable () -> Unit) {
     }
 }
 
-/**
- * Fond de tous les écrans : un aplat neutre et sombre. Pas de dégradé ni de halo teinté :
- * ce sont les affiches et les images qui apportent la couleur.
- */
+/** Haut du dégradé : graphite, ou graphite teinté par la couleur de l'affiche (assombri pour rester lisible). */
+private fun tintedTop(tint: Color?): Color {
+    if (tint == null) return BgTop
+    var top = lerp(BgTop, lerp(tint, Color.Black, 0.35f), 0.75f)
+    val lum = top.luminance()
+    if (lum > 0.055f) top = lerp(top, Color.Black, 1f - 0.055f / lum)
+    return top
+}
+
+/** Fond de tous les écrans : dégradé graphite, qui glisse en douceur vers la teinte de l'affiche. */
 @Composable
-fun Modifier.appBackground(@Suppress("UNUSED_PARAMETER") tint: Color? = null): Modifier = background(Bg)
+fun Modifier.appBackground(tint: Color? = null): Modifier {
+    val top by animateColorAsState(tintedTop(tint), tween(700), label = "bgTop")
+    val noise = remember { ShaderBrush(ImageShader(noiseBitmap, TileMode.Repeated, TileMode.Repeated)) }
+    // Halos lumineux : bleu Prime par défaut, ou couleur de l'affiche sélectionnée.
+    val halo by animateColorAsState(if (tint == null) Accent else lerp(tint, Accent, 0.25f), tween(700), label = "bgHalo")
+    return background(
+        Brush.verticalGradient(
+            0f to top,
+            0.5f to lerp(top, BgBottom, 0.82f),
+            1f to BgBottom,
+        )
+    ).drawBehind {
+        drawRect(
+            Brush.radialGradient(
+                listOf(halo.copy(alpha = 0.22f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.04f),
+                radius = size.width * 0.62f,
+            ),
+        )
+        drawRect(
+            Brush.radialGradient(
+                listOf(halo.copy(alpha = 0.08f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.92f),
+                radius = size.width * 0.5f,
+            ),
+        )
+        // Grain très léger (mode « Incrustation ») : casse les bandes visibles des dégradés sur les téléviseurs.
+        // Il suit la luminosité du fond, donc le noir pur reste parfaitement noir.
+        drawRect(noise, blendMode = BlendMode.Overlay)
+    }
+}
+
+/** Petite texture de grain gris moyen, répétée sur tout l'écran. */
+private val noiseBitmap: ImageBitmap by lazy {
+    val size = 128
+    val random = kotlin.random.Random(7)
+    val pixels = IntArray(size * size) {
+        val g = 122 + random.nextInt(13)
+        (0xFF shl 24) or (g shl 16) or (g shl 8) or g
+    }
+    android.graphics.Bitmap.createBitmap(pixels, size, size, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+}
 
 /** Courbe douce des animations : démarrage vif, arrivée très lente (proche de celle d'Apple). */
 val AppleEase = CubicBezierEasing(0.2f, 0f, 0f, 1f)

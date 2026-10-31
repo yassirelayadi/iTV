@@ -448,7 +448,13 @@ private fun FeaturedHero(
 
     // Hauteur fixe, dimensionnée pour le pire cas (titre sur 2 lignes + 2 lignes de résumé + bouton) :
     // les rangées en dessous ne bougent pas quand le bandeau change de film.
-    Box(modifier = Modifier.fillMaxWidth().height(if (compact) 170.dp else 320.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (compact) 170.dp else 320.dp)
+            // Dégradé noir sur le bas de l'image : le résumé reste lisible quelle que soit l'affiche.
+            .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Color(0x66000000), 1f to Color(0xE6000000))),
+    ) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -476,11 +482,11 @@ private fun FeaturedHero(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(0.7f),
             )
-            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.Medium)
+            if (meta.isNotEmpty()) Text(meta, color = Color(0xFFE6EAF0), fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.Medium)
             if (!compact && pick.overview != null) {
                 Text(
                     pick.overview,
-                    color = TextSecondary,
+                    color = Color(0xFFEDF0F5),
                     fontSize = 15.sp,
                     lineHeight = 20.sp,
                     maxLines = 3,
