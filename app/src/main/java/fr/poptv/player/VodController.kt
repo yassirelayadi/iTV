@@ -288,10 +288,33 @@ class VodController(
     }
 
     fun saveProgress(playback: VodPlayback, positionMs: Long, durationMs: Long) {
+        // L'épisode suivant est repéré tout de suite : la file est vidée quand le lecteur se ferme.
+        val finished = durationMs > 0 && positionMs >= durationMs * 95 / 100
+        val nextEpisode = if (finished && playback.kind == "episode") {
+            val i = queue.indexOfFirst { it.key == playback.key }
+            if (i >= 0 && i < queue.lastIndex) queue[i + 1] else null
+        } else {
+            null
+        }
         scope.launch {
-            if (durationMs > 0 && positionMs >= durationMs * 95 / 100) {
+            if (finished) {
                 store.removeResume(playback.key)
                 store.markWatched(playback.key)
+                // Une série reste dans « Reprendre » tant qu'elle n'est pas finie : on y met l'épisode suivant.
+                if (nextEpisode != null) {
+                    store.saveResume(
+                        ResumeEntry(
+                            key = nextEpisode.key,
+                            kind = nextEpisode.kind,
+                            title = nextEpisode.title,
+                            ext = nextEpisode.ext,
+                            poster = nextEpisode.poster,
+                            positionMs = 0,
+                            durationMs = 0,
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    )
+                }
             } else if (positionMs > 30_000) {
                 store.saveResume(
                     ResumeEntry(

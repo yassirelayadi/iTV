@@ -227,7 +227,7 @@ fun MediaScreen(
     var focusedInfo by remember { mutableStateOf<HeroInfo?>(null) }
     val onFocusInfo: (HeroInfo) -> Unit = { focusedInfo = it }
     val initialInfo = remember(resume, shelves) {
-        resume.firstOrNull()?.let { HeroInfo(it.title, "Reprendre à ${formatTime(it.positionMs)}", null, it.poster) }
+        resume.firstOrNull()?.let { HeroInfo(it.title, if (it.positionMs > 0) "Reprendre à ${formatTime(it.positionMs)}" else "Épisode suivant", null, it.poster) }
             ?: shelves.firstOrNull()?.items?.firstOrNull()?.let { it.hero(categoryNames[it.categoryId]) }
     }
     val hero = focusedInfo ?: initialInfo
@@ -637,7 +637,7 @@ private fun ResumeRow(
                     progress = if (entry.durationMs > 0) entry.positionMs.toFloat() / entry.durationMs else null,
                     onClick = { onResume(entry) },
                     onFocus = {
-                        val at = "Reprendre à ${formatTime(entry.positionMs)}"
+                        val at = if (entry.positionMs > 0) "Reprendre à ${formatTime(entry.positionMs)}" else "Épisode suivant"
                         onFocusInfo(HeroInfo(name, if (episodeLabel.isNotEmpty()) "$episodeLabel · $at" else at, null, entry.poster))
                     },
                     modifier = Modifier.width(posterWidth()),
