@@ -77,6 +77,11 @@ fun PlayerScreen(
     onNeedEpg: (String) -> Unit,
     onZap: (Int) -> Unit,
     onBack: () -> Unit,
+    channels: List<Channel> = emptyList(),
+    categories: List<fr.poptv.player.data.Category> = emptyList(),
+    favorites: Set<String> = emptySet(),
+    epgAll: Map<String, EpgInfo> = emptyMap(),
+    onPlay: (Channel, List<Channel>) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
 
@@ -101,6 +106,7 @@ fun PlayerScreen(
     var reconnecting by remember { mutableStateOf(false) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlayVisible by remember { mutableStateOf(true) }
+    var panelOpen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     DisposableEffect(player) {
@@ -177,6 +183,11 @@ fun PlayerScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_START) { player.play() }
 
     BackHandler(onBack = onBack)
+    // Le panneau des chaînes se ferme d'abord (déclaré après : prioritaire sur le retour).
+    BackHandler(enabled = panelOpen) { panelOpen = false }
+    LaunchedEffect(panelOpen) {
+        if (!panelOpen) runCatching { focusRequester.requestFocus() }
+    }
 
     Box(
         modifier = Modifier
@@ -199,7 +210,12 @@ fun PlayerScreen(
             )
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (panelOpen) return@onKeyEvent false // le panneau gère lui-même les touches
                 when (event.key) {
+                    Key.DirectionLeft -> {
+                        panelOpen = true
+                        true
+                    }
                     Key.DirectionUp, Key.ChannelUp, Key.PageUp -> {
                         onZap(+1)
                         true
@@ -216,7 +232,7 @@ fun PlayerScreen(
                             player.prepare()
                             player.playWhenReady = true
                         } else {
-                            overlayTick++
+                            panelOpen = true
                         }
                         true
                     }
@@ -265,7 +281,7 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = overlayVisible,
+            visible = overlayVisible && !panelOpen,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart),
@@ -327,13 +343,34 @@ fun PlayerScreen(
                             )
                         }
                         Text(
-                            if (LocalCompact.current) "Balayer vers le haut / bas pour changer de chaîne" else "Haut / Bas pour changer de chaîne",
+                            if (LocalCompact.current) "Balayer vers le haut / bas pour changer de chaîne" else "OK : liste des chaînes   ·   Haut / Bas : changer de chaîne",
                             color = TextSecondary,
                             fontSize = 13.sp,
                         )
                     }
                 }
             }
+        }
+
+        AnimatedVisibility(
+            visible = panelOpen,
+            enter = androidx.compose.animation.slideInHorizontally { -it } + fadeIn(),
+            exit = androidx.compose.animation.slideOutHorizontally { -it } + fadeOut(),
+            modifier = Modifier.align(Alignment.CenterStart),
+        ) {
+            ChannelPanel(
+                current = channel,
+                channels = channels,
+                categories = categories,
+                favorites = favorites,
+                epg = epgAll,
+                onNeedEpg = onNeedEpg,
+                onPick = { picked, among ->
+                    panelOpen = false
+                    if (picked.id != channel.id) onPlay(picked, among)
+                },
+                onClose = { panelOpen = false },
+            )
         }
     }
 }

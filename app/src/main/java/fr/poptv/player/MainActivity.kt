@@ -116,6 +116,11 @@ private fun App(viewModel: AppViewModel) {
             onNeedEpg = viewModel::requestEpg,
             onZap = viewModel::zap,
             onBack = viewModel::stop,
+            channels = state.channels,
+            categories = state.categories,
+            favorites = state.favorites,
+            epgAll = epg,
+            onPlay = viewModel::play,
         )
 
         Screen.Login -> LoginScreen(
