@@ -214,7 +214,7 @@ internal fun PlayerSidePanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(row.icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                        Text(row.title, color = TextSecondary, fontSize = 14.sp)
+                        Text(row.title, color = TextSecondary, fontSize = 15.sp)
                     }
 
                     is PanelRow.Choice -> FocusItem(
@@ -239,7 +239,7 @@ internal fun PlayerSidePanel(
                             Text(
                                 row.option.label,
                                 color = color,
-                                fontSize = 16.sp,
+                                fontSize = 17.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
@@ -270,7 +270,7 @@ internal fun NextEpisodeCard(
     Row(
         modifier = modifier
             .width(460.dp)
-            .background(Color(0xF0101A26), RoundedCornerShape(24.dp))
+            .background(Color(0xF0101A26), RoundedCornerShape(14.dp))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -305,11 +305,11 @@ internal fun NextEpisodeCard(
             }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Épisode suivant · dans $seconds s", color = TextSecondary, fontSize = 12.sp)
+            Text("Épisode suivant · dans $seconds s", color = TextSecondary, fontSize = 13.sp)
             Text(
                 label.orEmpty(),
                 color = Color.White,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -327,7 +327,7 @@ private fun CardButton(text: String, primary: Boolean, onClick: () -> Unit, modi
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(50),
+        shape = RoundedCornerShape(10.dp),
         focusScale = 1.08f,
         idleColor = if (primary) Color(0xFFE8EEF5) else Color(0x33FFFFFF),
         focusedColor = Color.White,
@@ -337,7 +337,7 @@ private fun CardButton(text: String, primary: Boolean, onClick: () -> Unit, modi
             text,
             color = color,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
+            fontSize = 15.sp,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp),
         )
     }

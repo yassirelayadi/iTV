@@ -168,7 +168,7 @@ fun DetailScreen(
                 modifier = Modifier
                     .width(if (compact) 108.dp else 190.dp)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Surface1),
             ) {
                 if (item.poster != null) {
@@ -197,25 +197,14 @@ fun DetailScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (metaParts.isNotEmpty()) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        metaParts.forEach { part ->
-                            Text(
-                                part,
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .background(GlassFill)
-                                    .border(1.dp, GlassBorder, RoundedCornerShape(50))
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                            )
-                        }
-                    }
+                    Text(
+                        metaParts.joinToString("   ·   "),
+                        color = TextSecondary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 if (!detail.isSeries) {
@@ -369,7 +358,7 @@ private fun EpisodePanel(episode: Episode, fallbackPlot: String?) {
         Text(
             episode.title,
             color = TextPrimary,
-            fontSize = 22.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -378,13 +367,13 @@ private fun EpisodePanel(episode: Episode, fallbackPlot: String?) {
             Text(
                 summary,
                 color = TextSecondary,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 lineHeight = 20.sp,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
         } else {
-            Text("Pas de résumé pour cet épisode.", color = TextSecondary, fontSize = 14.sp)
+            Text("Pas de résumé pour cet épisode.", color = TextSecondary, fontSize = 15.sp)
         }
     }
 }
@@ -438,7 +427,7 @@ private fun EpisodeTile(
                     Modifier
                         .align(Alignment.BottomStart)
                         .padding(start = 10.dp, bottom = 10.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(50))
+                        .background(Color(0x99000000), RoundedCornerShape(4.dp))
                         .padding(horizontal = 9.dp, vertical = 2.dp)
                 } else {
                     Modifier.align(Alignment.Center)
@@ -456,7 +445,7 @@ private fun EpisodeTile(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                    Text("Reprendre", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Reprendre", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             // Coche « vu », en haut à droite.
@@ -503,7 +492,7 @@ private fun EpisodeTile(
                 Text(
                     meta,
                     color = if (resume != null && !watched) Accent else TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontWeight = if (resume != null && !watched) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -522,7 +511,7 @@ private fun SeasonButton(label: String, onClick: () -> Unit, modifier: Modifier 
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(50),
+        shape = RoundedCornerShape(10.dp),
         focusScale = 1.08f,
         idleColor = Surface2,
         focusedColor = Color.White,
@@ -553,7 +542,7 @@ private fun SeasonMenu(
         modifier = Modifier
             .width(230.dp)
             .heightIn(max = 150.dp)
-            .background(Color(0xF2121214), RoundedCornerShape(20.dp))
+            .background(Color(0xF2121214), RoundedCornerShape(14.dp))
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -574,7 +563,7 @@ private fun SeasonMenu(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(seasonLabel(s), color = color, fontSize = 16.sp, maxLines = 1)
+                    Text(seasonLabel(s), color = color, fontSize = 17.sp, maxLines = 1)
                     if (index == selectedIndex) {
                         Icon(AppIcons.Check, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
                     }

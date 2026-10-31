@@ -458,15 +458,10 @@ private fun FeaturedHero(
         ) {
             Text(
                 "À L'AFFICHE",
-                color = Color.White,
-                fontSize = if (compact) 9.sp else 12.sp,
+                color = Accent,
+                fontSize = if (compact) 13.sp else 13.sp,
                 fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(GlassFill)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(50))
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                letterSpacing = 1.5.sp,
             )
             // Titre plus petit quand il est long, pour tenir sur deux lignes sans écraser le reste.
             val longTitle = pick.item.name.length > 24
@@ -481,12 +476,12 @@ private fun FeaturedHero(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(0.7f),
             )
-            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 11.sp else 14.sp, fontWeight = FontWeight.Medium)
+            if (meta.isNotEmpty()) Text(meta, color = TextSecondary, fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.Medium)
             if (!compact && pick.overview != null) {
                 Text(
                     pick.overview,
                     color = TextSecondary,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     lineHeight = 20.sp,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -602,7 +597,7 @@ private fun MediaTabs(categories: List<Category>, selected: String, onSelect: (S
 private fun ShelfTitle(text: String) {
     Text(
         text,
-        fontSize = 22.sp,
+        fontSize = 24.sp,
         fontWeight = FontWeight.Bold,
         color = TextPrimary,
         modifier = Modifier.padding(horizontal = ScreenPadding),
@@ -754,11 +749,11 @@ private fun PosterTile(
                 Text(
                     "♥",
                     color = Color(0xFFFF3B30),
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(6.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(50))
+                        .background(Color(0x99000000), RoundedCornerShape(4.dp))
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 )
             }
@@ -773,7 +768,7 @@ private fun PosterTile(
                 Text(
                     title.take(2).uppercase(),
                     color = TextSecondary,
-                    fontSize = 30.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -782,12 +777,12 @@ private fun PosterTile(
                 Text(
                     "★ $rating",
                     color = Color.White,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(50))
+                        .background(Color(0x99000000), RoundedCornerShape(4.dp))
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 )
             }

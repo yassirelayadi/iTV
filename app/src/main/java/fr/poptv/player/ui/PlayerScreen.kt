@@ -246,7 +246,7 @@ fun PlayerScreen(
                     Text(
                         "Reconnexion… ($retries/$MAX_RETRIES)",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         modifier = Modifier.padding(top = 12.dp),
                     )
                 }
@@ -259,7 +259,7 @@ fun PlayerScreen(
                 color = ErrorColor,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                    .background(Color(0xCC000000), RoundedCornerShape(10.dp))
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             )
         }
@@ -287,12 +287,12 @@ fun PlayerScreen(
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .size(64.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(Surface1),
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(channel.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
+                        Text(channel.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
                         val nowSec = System.currentTimeMillis() / 1000
                         val current = epg?.now(nowSec)
                         val upcoming = epg?.next(nowSec)
@@ -300,7 +300,7 @@ fun PlayerScreen(
                             Text(
                                 "${current.title}  ·  ${formatClock(current.startSec)} – ${formatClock(current.endSec)}",
                                 color = Color.White,
-                                fontSize = 18.sp,
+                                fontSize = 20.sp,
                                 maxLines = 1,
                             )
                             Box(

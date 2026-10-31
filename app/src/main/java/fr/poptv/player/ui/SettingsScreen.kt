@@ -64,7 +64,7 @@ fun SettingsScreen(
                 .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Réglages", fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+            Text("Réglages", fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
             Spacer(Modifier.height(8.dp))
 
             ProfileCard(state.account, state.accountLoading)
@@ -159,17 +159,17 @@ private fun ProfileCard(account: AccountInfo?, loading: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(GlassFill)
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
             .padding(horizontal = 22.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("Profil", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+        Text("Profil", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Medium)
         lines.forEach { (label, value) ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(label, color = TextSecondary, fontSize = 14.sp, modifier = Modifier.width(110.dp))
-                Text(value, color = TextPrimary, fontSize = 14.sp)
+                Text(label, color = TextSecondary, fontSize = 15.sp, modifier = Modifier.width(110.dp))
+                Text(value, color = TextPrimary, fontSize = 15.sp)
             }
         }
     }
@@ -203,15 +203,15 @@ private fun SettingRow(
     FocusItem(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         focusScale = 1.03f,
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(title, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = TextSecondary, fontSize = 14.sp)
+            Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = TextSecondary, fontSize = 15.sp)
         }
     }
 }

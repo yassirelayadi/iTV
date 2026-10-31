@@ -58,10 +58,7 @@ fun EmptyState(
             modifier = Modifier.widthIn(max = 460.dp),
         ) {
             Box(
-                modifier = Modifier
-                    .size(if (compact) 52.dp else 76.dp)
-                    .background(GlassFill, CircleShape)
-                    .border(1.dp, GlassBorder, CircleShape),
+                modifier = Modifier.size(if (compact) 52.dp else 76.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -83,7 +80,7 @@ fun EmptyState(
             Text(
                 message,
                 color = TextSecondary,
-                fontSize = if (compact) 13.sp else 16.sp,
+                fontSize = if (compact) 13.sp else 17.sp,
                 lineHeight = if (compact) 18.sp else 23.sp,
                 textAlign = TextAlign.Center,
             )
@@ -131,8 +128,8 @@ fun CatalogSkeleton(modifier: Modifier = Modifier) {
                                 .width(width)
                                 .height(width * 1.5f)
                                 .alpha(pulse)
-                                .background(GlassFill, RoundedCornerShape(20.dp))
-                                .border(1.dp, GlassBorder, RoundedCornerShape(20.dp)),
+                                .background(GlassFill, RoundedCornerShape(14.dp))
+                                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp)),
                         )
                     }
                 }

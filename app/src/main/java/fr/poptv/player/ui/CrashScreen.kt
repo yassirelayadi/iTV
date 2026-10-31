@@ -26,7 +26,7 @@ fun CrashScreen(report: String, onClose: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().appBackground().padding(horizontal = 56.dp, vertical = 32.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("iTV s'est arrêtée la dernière fois", color = TextPrimary, fontSize = 26.sp)
+            Text("iTV s'est arrêtée la dernière fois", color = TextPrimary, fontSize = 28.sp)
             Text(
                 "Envoie-moi une photo de cet écran pour que je corrige le problème.",
                 color = TextSecondary,
@@ -37,7 +37,7 @@ fun CrashScreen(report: String, onClose: () -> Unit) {
                 Text(
                     report.lines().take(22).joinToString("\n"),
                     color = TextSecondary,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     lineHeight = 14.sp,
                 )
             }

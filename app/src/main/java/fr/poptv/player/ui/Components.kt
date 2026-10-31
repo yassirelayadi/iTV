@@ -59,8 +59,8 @@ import androidx.compose.ui.zIndex
 fun FocusItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(20.dp),
-    focusScale: Float = 1.06f,
+    shape: Shape = RoundedCornerShape(10.dp),
+    focusScale: Float = 1.04f,
     idleColor: Color = GlassFill,
     focusedColor: Color = GlassFocus,
     focusRing: Boolean = false,
@@ -77,7 +77,7 @@ fun FocusItem(
         label = "focusScale",
     )
     val color by animateColorAsState(if (focused) focusedColor else idleColor, tween(220), label = "focusColor")
-    val elevation by animateDpAsState(if (focused) 18.dp else if (glow) 5.dp else 0.dp, tween(220), label = "focusShadow")
+    val elevation by animateDpAsState(if (focused) 10.dp else if (glow) 5.dp else 0.dp, tween(220), label = "focusShadow")
 
     Box(
         modifier = modifier
@@ -90,7 +90,6 @@ fun FocusItem(
             .clip(shape)
             .then(if (idleBrush != null && !focused) Modifier.background(idleBrush) else Modifier.background(color))
             .then(if (focusRing && focused) Modifier.border(2.dp, ringColor, shape) else Modifier)
-            .then(if (!focused && idleColor == GlassFill) Modifier.border(1.dp, GlassBorder, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
@@ -110,8 +109,8 @@ fun Pill(
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(50),
-        focusScale = 1.08f,
+        shape = RoundedCornerShape(10.dp),
+        focusScale = 1.04f,
         idleColor = if (selected) Accent else Color.Transparent,
         focusedColor = Color.White,
     ) { focused ->
@@ -168,8 +167,8 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(50),
-        focusScale = 1.08f,
+        shape = RoundedCornerShape(10.dp),
+        focusScale = 1.04f,
         idleColor = Color(0xFFE8EEF5),
         focusedColor = Color.White,
     ) {

@@ -51,15 +51,15 @@ fun TmdbKeyScreen(
                 .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 16.dp)
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(GlassFill)
-                .border(1.dp, GlassBorder, RoundedCornerShape(28.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 28.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Tendances et à l'affiche", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+            Text("Tendances et à l'affiche", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
             Text(
                 "Crée un compte gratuit sur themoviedb.org, puis ouvre Paramètres → API et copie ta clé " +
                     "(ou le long jeton qui commence par « eyJ »). Colle-la ci-dessous : elle est vérifiée, " +
@@ -73,7 +73,7 @@ fun TmdbKeyScreen(
                 Text(
                     "L'app contient déjà une clé par défaut : ta propre clé est facultative.",
                     color = TextSecondary,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -99,7 +99,7 @@ fun TmdbKeyScreen(
             Text(
                 "Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.",
                 color = TextSecondary,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 textAlign = TextAlign.Center,
             )
         }

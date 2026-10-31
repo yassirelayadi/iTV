@@ -358,7 +358,7 @@ fun VodPlayerScreen(
                 color = ErrorColor,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                    .background(Color(0xCC000000), RoundedCornerShape(10.dp))
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             )
         }
@@ -367,11 +367,11 @@ fun VodPlayerScreen(
             Text(
                 "Pause",
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0x99000000), RoundedCornerShape(50))
+                    .background(Color(0x99000000), RoundedCornerShape(4.dp))
                     .padding(horizontal = 28.dp, vertical = 10.dp),
             )
         }
@@ -415,7 +415,7 @@ fun VodPlayerScreen(
                 Text(
                     playback.title,
                     color = Color.White,
-                    fontSize = 26.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -476,11 +476,11 @@ fun VodPlayerScreen(
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(position), color = TextSecondary, fontSize = 14.sp)
+                    Text(formatTime(position), color = TextSecondary, fontSize = 15.sp)
                     Text(
                         if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
                         color = TextSecondary,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                     )
                 }
                 if (LocalCompact.current) {
@@ -496,7 +496,7 @@ fun VodPlayerScreen(
                     Text(
                         "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
                         color = TextSecondary,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                     )
                 }
             }

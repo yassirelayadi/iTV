@@ -175,7 +175,7 @@ private fun ScreenHeader(
                 placeholder = "Rechercher",
                 modifier = Modifier.width(if (compact) 220.dp else 260.dp).focusRequester(searchFocus),
                 imeAction = ImeAction.Search,
-                shape = RoundedCornerShape(50),
+                shape = RoundedCornerShape(10.dp),
                 leadingIcon = Icons.Filled.Search,
             )
         }

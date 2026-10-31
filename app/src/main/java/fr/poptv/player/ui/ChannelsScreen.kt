@@ -246,7 +246,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
         Box(
             modifier = Modifier
                 .size(if (LocalCompact.current) 52.dp else 84.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(Color(0x33FFFFFF)),
             contentAlignment = Alignment.Center,
         ) {
@@ -270,7 +270,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
             Text(
                 "DERNIÈRE CHAÎNE REGARDÉE",
                 color = TextSecondary,
-                fontSize = 11.sp,
+                fontSize = 13.sp,
                 letterSpacing = 0.8.sp,
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -283,7 +283,7 @@ private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> 
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                LiveBadge(fontSize = 11.sp)
+                LiveBadge(fontSize = 13.sp)
             }
             if (program != null) {
                 Text(
@@ -328,7 +328,7 @@ private fun ShelfRow(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             shelf.title,
-            fontSize = 22.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Medium,
             color = TextPrimary,
             modifier = Modifier.padding(horizontal = ScreenPadding),
@@ -426,7 +426,7 @@ private fun ChannelTile(
                 Text(
                     program.title,
                     color = TextSecondary,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
@@ -454,7 +454,7 @@ private fun ChannelTile(
             Text(
                 "★",
                 color = Color.White,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
             )
         }
