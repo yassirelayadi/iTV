@@ -1,6 +1,7 @@
 package fr.poptv.player.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -197,9 +198,9 @@ internal fun PlayerSidePanel(
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .width(380.dp)
-            .background(Color(0xF505080D))
-            .padding(horizontal = 22.dp, vertical = 30.dp),
+            .width(440.dp)
+            .background(Brush.horizontalGradient(0f to Color.Transparent, 0.22f to Color(0xF005080D), 1f to Color(0xF505080D)))
+            .padding(start = 70.dp, end = 22.dp, top = 30.dp, bottom = 30.dp),
     ) {
         LazyColumn(
             state = listState,

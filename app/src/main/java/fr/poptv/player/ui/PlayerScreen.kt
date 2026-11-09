@@ -296,8 +296,8 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                    .padding(horizontal = if (LocalCompact.current) 24.dp else 56.dp, vertical = if (LocalCompact.current) 20.dp else 40.dp),
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE0000000))))
+                    .padding(start = if (LocalCompact.current) 24.dp else 56.dp, end = if (LocalCompact.current) 24.dp else 56.dp, top = 70.dp, bottom = if (LocalCompact.current) 20.dp else 40.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -310,12 +310,15 @@ fun PlayerScreen(
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .size(64.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Surface1),
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0x33FFFFFF)),
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(channel.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(channel.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)
+                            LiveBadge(fontSize = 12.sp)
+                        }
                         val nowSec = System.currentTimeMillis() / 1000
                         val current = epg?.now(nowSec)
                         val upcoming = epg?.next(nowSec)
@@ -337,7 +340,7 @@ fun PlayerScreen(
                                     modifier = Modifier
                                         .fillMaxWidth(current.progress(nowSec))
                                         .fillMaxHeight()
-                                        .background(AccentBrush),
+                                        .background(Color.White),
                                 )
                             }
                         }
@@ -349,11 +352,6 @@ fun PlayerScreen(
                                 maxLines = 1,
                             )
                         }
-                        Text(
-                            if (LocalCompact.current) "Balayer vers le haut / bas pour changer de chaîne" else "OK : liste des chaînes   ·   Haut / Bas : changer de chaîne",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                        )
                     }
                 }
             }

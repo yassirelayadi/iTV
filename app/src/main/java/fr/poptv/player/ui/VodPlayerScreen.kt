@@ -56,6 +56,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -119,6 +121,15 @@ fun VodPlayerScreen(
     // Options : panneau latéral (touche Bas).
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var panelOpen by remember { mutableStateOf(false) }
+    // Section ouverte depuis un bouton du bas (null = toutes, via la touche Menu).
+    var panelFilter by remember { mutableStateOf<String?>(null) }
+    // Rangée de boutons (audio, sous-titres, vitesse, qualité) : prend le focus avec la touche Bas.
+    var controlsFocused by remember { mutableStateOf(false) }
+    var controlsTick by remember { mutableIntStateOf(0) }
+    val controlsFocus = remember { FocusRequester() }
+    // Saut en cours (« + 30 s » au centre), cumulé tant que les sauts s'enchaînent.
+    var seekDelta by remember { mutableLongStateOf(0L) }
+    var seekLabelTick by remember { mutableIntStateOf(0) }
 
     // Barre de progression : fine au repos, épaisse pendant un saut.
     var seekTick by remember { mutableIntStateOf(0) }
@@ -192,7 +203,25 @@ fun VodPlayerScreen(
 
     // À la fermeture du panneau, le focus revient à l'écran de lecture.
     LaunchedEffect(panelOpen) {
-        if (!panelOpen) runCatching { focusRequester.requestFocus() }
+        if (!panelOpen) {
+            panelFilter = null
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
+
+    LaunchedEffect(controlsTick) {
+        if (controlsTick > 0) {
+            delay(90)
+            runCatching { controlsFocus.requestFocus() }
+        }
+    }
+
+    // Le libellé du saut disparaît 1 s après le dernier saut.
+    LaunchedEffect(seekLabelTick) {
+        if (seekLabelTick > 0) {
+            delay(1_000)
+            seekDelta = 0L
+        }
     }
 
     // La barre grossit pendant 2,5 s après chaque saut.
@@ -229,6 +258,7 @@ fun VodPlayerScreen(
     BackHandler {
         when {
             panelOpen -> panelOpen = false
+            controlsFocused -> runCatching { focusRequester.requestFocus() }
             inCredits -> nextDismissed = true
             else -> onBack()
         }
@@ -238,6 +268,8 @@ fun VodPlayerScreen(
         val total = player.duration
         var target = (player.currentPosition + deltaMs).coerceAtLeast(0L)
         if (total > 0) target = target.coerceAtMost(total)
+        seekDelta += target - player.currentPosition
+        seekLabelTick++
         player.seekTo(target)
         position = target
         overlayTick++
@@ -271,13 +303,14 @@ fun VodPlayerScreen(
                 onSeek = { dir -> seekBy(dir * 10_000L) },
                 onLongPress = {
                     overlayTick++
+                    panelFilter = null
                     panelOpen = true
                 },
             )
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Panneau ouvert ou carte « Épisode suivant » affichée : leurs boutons gèrent les touches.
-                if (panelOpen || inCredits) return@onKeyEvent false
+                if (panelOpen || inCredits || controlsFocused) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> {
                         seekBy(-10_000)
@@ -320,13 +353,17 @@ fun VodPlayerScreen(
                         true
                     }
                     Key.DirectionDown -> {
+                        // Affiche les commandes et donne le focus à la rangée de boutons.
                         overlayTick++
-                        panelOpen = true
+                        controlsTick++
                         true
                     }
                     Key.DirectionUp, Key.Menu -> {
                         overlayTick++
-                        if (event.key == Key.Menu) panelOpen = true
+                        if (event.key == Key.Menu) {
+                            panelFilter = null
+                            panelOpen = true
+                        }
                         true
                     }
                     else -> false
@@ -364,140 +401,190 @@ fun VodPlayerScreen(
         }
 
         if (paused && error == null && !buffering) {
-            Text(
-                "Pause",
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
+            Box(modifier = Modifier.fillMaxSize().background(Color(0x59000000)))
+            Box(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0x99000000), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 28.dp, vertical = 10.dp),
+                    .size(if (LocalCompact.current) 64.dp else 96.dp)
+                    .background(Color(0x40FFFFFF), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(if (LocalCompact.current) 6.dp else 9.dp)) {
+                    repeat(2) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = if (LocalCompact.current) 8.dp else 11.dp, height = if (LocalCompact.current) 26.dp else 38.dp)
+                                .background(Color.White, RoundedCornerShape(3.dp)),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Saut en cours : « + 30 s » au centre.
+        if (seekDelta != 0L && !paused) {
+            val seconds = kotlin.math.abs(seekDelta) / 1000
+            Text(
+                (if (seekDelta > 0) "+ " else "− ") + seconds + " s",
+                color = Color.White,
+                fontSize = if (LocalCompact.current) 28.sp else 44.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.align(Alignment.Center),
             )
         }
 
-        val showOverlay = overlayVisible || paused || panelOpen
-
-        // Au repos, seule une fine ligne de progression reste visible en bas de l'écran.
-        if (!showOverlay && duration > 0) {
-            val restFraction = (position.toFloat() / duration).coerceIn(0f, 1f)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(Color(0x40FFFFFF)),
-            ) {
-                Box(modifier = Modifier.fillMaxWidth(restFraction).fillMaxHeight().background(AccentBrush))
-            }
-        }
+        // Rien ne reste affiché au repos : l'interface n'apparaît qu'après une action, puis disparaît seule.
+        val showOverlay = overlayVisible || paused || panelOpen || controlsFocused
 
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomStart),
+            modifier = Modifier.fillMaxSize(),
         ) {
             val fraction = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
-            val barHeight by animateDpAsState(if (seeking) 12.dp else 5.dp, tween(Dur.Fast, easing = AppleEase), label = "progressHeight")
+            val barHeight by animateDpAsState(if (seeking || controlsFocused) 8.dp else 5.dp, tween(Dur.Fast, easing = AppleEase), label = "progressHeight")
             val remaining = (duration - position).coerceAtLeast(0L)
             val speed = player.playbackParameters.speed.coerceAtLeast(0.1f)
             val endClock = SimpleDateFormat("HH:mm", Locale.getDefault())
                 .format(Date(System.currentTimeMillis() + (remaining / speed).toLong()))
+            val sidePadding = if (LocalCompact.current) 24.dp else 56.dp
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                    .padding(horizontal = if (LocalCompact.current) 24.dp else 56.dp, vertical = if (LocalCompact.current) 16.dp else 36.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    playback.title,
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (playback.subtitle != null) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // En haut : titre et infos, sur un dégradé qui s'estompe.
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
+                        .padding(start = sidePadding, end = sidePadding, top = if (LocalCompact.current) 16.dp else 36.dp, bottom = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
                     Text(
-                        playback.subtitle,
-                        color = TextSecondary,
-                        fontSize = 17.sp,
+                        playback.title,
+                        color = Color.White,
+                        fontSize = if (LocalCompact.current) 20.sp else 26.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.6).sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    val sub = if (paused) "En pause" else playback.subtitle
+                    if (sub != null) {
+                        Text(sub, color = Color(0xB3FFFFFF), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(if (LocalCompact.current) 30.dp else 14.dp)
-                        .pointerInput(duration) {
-                            if (duration <= 0L) return@pointerInput
-                            detectTapGestures { offset ->
-                                val target = (touchFraction(offset.x, size) * duration).toLong()
-                                player.seekTo(target)
-                                position = target
-                                overlayTick++
-                                seekTick++
+
+                // En bas : progression, temps, puis les boutons.
+                if (!panelOpen) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE0000000))))
+                            .padding(start = sidePadding, end = sidePadding, top = 60.dp, bottom = if (LocalCompact.current) 16.dp else 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (LocalCompact.current) 30.dp else 22.dp)
+                                .pointerInput(duration) {
+                                    if (duration <= 0L) return@pointerInput
+                                    detectTapGestures { offset ->
+                                        val target = (touchFraction(offset.x, size) * duration).toLong()
+                                        player.seekTo(target)
+                                        position = target
+                                        overlayTick++
+                                        seekTick++
+                                    }
+                                }
+                                .pointerInput(duration) {
+                                    if (duration <= 0L) return@pointerInput
+                                    detectHorizontalDragGestures { change, _ ->
+                                        val target = (touchFraction(change.position.x, size) * duration).toLong()
+                                        player.seekTo(target)
+                                        position = target
+                                        overlayTick++
+                                        seekTick++
+                                    }
+                                },
+                        ) {
+                            val trackWidth = maxWidth
+                            val knob = if (seeking || controlsFocused) 20.dp else 14.dp
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .fillMaxWidth()
+                                    .height(barHeight)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color(0x40FFFFFF)),
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Color.White))
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .offset(x = trackWidth * fraction - knob / 2)
+                                    .size(knob)
+                                    .background(Color.White, CircleShape),
+                            )
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(formatTime(position), color = Color(0xCCFFFFFF), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
+                                color = Color(0xCCFFFFFF),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        val audio = audioOptions(player, tracks)
+                        val subs = subtitleOptions(player, tracks)
+                        val quality = qualityOptions(player, tracks)
+                        val speedOpts = speedOptions(player)
+                        fun open(section: String) {
+                            panelFilter = section
+                            panelOpen = true
+                            overlayTick++
+                        }
+                        Row(
+                            modifier = Modifier
+                                .onFocusChanged { controlsFocused = it.hasFocus }
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown) {
+                                        overlayTick++
+                                        if (event.key == Key.DirectionUp) {
+                                            runCatching { focusRequester.requestFocus() }
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+                                    false
+                                },
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            var first = true
+                            fun mod(): Modifier = if (first) { first = false; Modifier.focusRequester(controlsFocus) } else Modifier
+                            if (audio.size > 1) {
+                                PlayerChip(AppIcons.Audio, audio.firstOrNull { it.selected }?.label ?: "Audio", mod()) { open("Audio") }
+                            }
+                            if (subs.isNotEmpty()) {
+                                PlayerChip(AppIcons.Subtitles, subs.firstOrNull { it.selected }?.label ?: "Sous-titres", mod()) { open("Sous-titres") }
+                            }
+                            PlayerChip(AppIcons.Speed, speedOpts.firstOrNull { it.selected }?.label ?: "1×", mod()) { open("Vitesse") }
+                            if (quality.isNotEmpty()) {
+                                PlayerChip(AppIcons.Quality, quality.firstOrNull { it.selected }?.label ?: "Qualité", mod()) { open("Qualité") }
+                            }
+                            if (LocalCompact.current) {
+                                Text(
+                                    "Toucher : pause  ·  Double toucher : ±10 s",
+                                    color = Color(0xB3FFFFFF),
+                                    fontSize = 13.sp,
+                                )
                             }
                         }
-                        .pointerInput(duration) {
-                            if (duration <= 0L) return@pointerInput
-                            detectHorizontalDragGestures { change, _ ->
-                                val target = (touchFraction(change.position.x, size) * duration).toLong()
-                                player.seekTo(target)
-                                position = target
-                                overlayTick++
-                                seekTick++
-                            }
-                        },
-                ) {
-                    val trackWidth = maxWidth
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .fillMaxWidth()
-                            .height(barHeight)
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0x40FFFFFF)),
-                    ) {
-                        Box(modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(AccentBrush))
                     }
-                    if (seeking) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .offset(x = trackWidth * fraction - 7.dp)
-                                .size(14.dp)
-                                .background(Color.White, CircleShape),
-                        )
-                    }
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(position), color = TextSecondary, fontSize = 15.sp)
-                    Text(
-                        if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
-                        color = TextSecondary,
-                        fontSize = 15.sp,
-                    )
-                }
-                if (LocalCompact.current) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Pill("Options", onClick = { panelOpen = true; overlayTick++ })
-                        Text(
-                            "Toucher : pause  ·  Double toucher : ±10 s",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                        )
-                    }
-                } else {
-                    Text(
-                        "Gauche / Droite : 10 s  ·  OK : pause  ·  Bas : options",
-                        color = TextSecondary,
-                        fontSize = 15.sp,
-                    )
                 }
             }
         }
@@ -537,7 +624,7 @@ fun VodPlayerScreen(
             val audio = audioOptions(player, tracks)
             val subs = subtitleOptions(player, tracks)
             val quality = qualityOptions(player, tracks)
-            val sections = buildList {
+            val allSections = buildList {
                 if (playback.hasNext) {
                     add(PanelSection("Épisode suivant", AppIcons.SkipNext, listOf(TrackOption("Lire maintenant", false) { latestOnNext() })))
                 }
@@ -546,10 +633,34 @@ fun VodPlayerScreen(
                 if (quality.isNotEmpty()) add(PanelSection("Qualité", AppIcons.Quality, quality))
                 add(PanelSection("Vitesse", AppIcons.Speed, speedOptions(player)))
             }
+            val sections = allSections.filter { panelFilter == null || it.title == panelFilter }.ifEmpty { allSections }
             PlayerSidePanel(
                 sections = sections,
                 onClose = { panelOpen = false },
             )
+        }
+    }
+}
+
+/** Bouton arrondi translucide sous la barre de progression (audio, sous-titres, vitesse, qualité). */
+@Composable
+private fun PlayerChip(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    FocusItem(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        focusScale = 1.05f,
+        idleColor = Color(0x38FFFFFF),
+        focusedColor = Color.White,
+    ) { focused ->
+        val tint = if (focused) Color.Black else Color.White
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            androidx.compose.material3.Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            Text(label, color = tint, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
