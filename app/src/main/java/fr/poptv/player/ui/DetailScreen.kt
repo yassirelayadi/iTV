@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -86,6 +87,8 @@ fun DetailScreen(
     onBack: () -> Unit,
     backdrop: String? = null,
     categoryName: String? = null,
+    similar: List<fr.poptv.player.data.VodItem> = emptyList(),
+    onOpenSimilar: (fr.poptv.player.data.VodItem) -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
 
@@ -98,6 +101,8 @@ fun DetailScreen(
         mutableIntStateOf(detail.seasons.indexOfFirst { it.number == target?.season?.number }.coerceAtLeast(0))
     }
     var focusedEpisodeId by remember { mutableStateOf<String?>(null) }
+    // Séries : la rangée du bas affiche les épisodes, ou les titres similaires quand on les demande.
+    var showSimilar by remember(item.id) { mutableStateOf(false) }
 
     // Menu déroulant des saisons.
     var seasonMenuOpen by remember { mutableStateOf(false) }
@@ -274,6 +279,9 @@ fun DetailScreen(
                                     )
                                 }
                                 Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = Icons.Filled.Favorite, selected = favorite)
+                                if (similar.isNotEmpty()) {
+                                    Pill(if (showSimilar) "Épisodes" else "Similaires", onClick = { showSimilar = !showSimilar })
+                                }
                                 Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
                             }
 
@@ -310,7 +318,9 @@ fun DetailScreen(
                                 val index = season.episodes.indexOfFirst { it.id == target?.episode?.id }
                                 episodesState.scrollToItem(index.coerceAtLeast(0))
                             }
-                            LazyRow(
+                            if (showSimilar && similar.isNotEmpty()) {
+                                SimilarRow(similar, onOpenSimilar)
+                            } else LazyRow(
                                 state = episodesState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(vertical = 10.dp),
@@ -332,16 +342,22 @@ fun DetailScreen(
             }
         }
 
-        Row(
+        val movieSimilar = !detail.isSeries && similar.isNotEmpty() && !compact
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = if (compact) 28.dp else 56.dp, vertical = if (compact) 18.dp else 36.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 22.dp else 40.dp),
-            verticalAlignment = if (detail.isSeries) Alignment.Top else Alignment.CenterVertically,
         ) {
-            poster()
-            // Pas de carte : le texte se pose directement sur le fond (série : colonne pleine hauteur).
-            info(if (detail.isSeries) Modifier.weight(1f).fillMaxHeight() else Modifier.weight(1f))
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 22.dp else 40.dp),
+                verticalAlignment = if (detail.isSeries || movieSimilar) Alignment.Top else Alignment.CenterVertically,
+            ) {
+                poster()
+                // Pas de carte : le texte se pose directement sur le fond (série : colonne pleine hauteur).
+                info(if (detail.isSeries) Modifier.weight(1f).fillMaxHeight() else Modifier.weight(1f))
+            }
+            if (movieSimilar) SimilarRow(similar, onOpenSimilar)
         }
     }
 }
@@ -605,4 +621,38 @@ private fun nextTarget(
     }
     val first = ordered.first()
     return PlayTarget(first.second, first.first, "Revoir S${first.second.season} · E${first.second.number}")
+}
+
+/** Rangée « Titres similaires » : petites affiches, le titre dessous. */
+@Composable
+private fun SimilarRow(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.poptv.player.data.VodItem) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Titres similaires", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+        ) {
+            items(items, key = { it.id }) { other ->
+                Column(modifier = Modifier.width(92.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FocusItem(
+                        onClick = { onOpen(other) },
+                        modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
+                        focusScale = 1.08f,
+                        focusRing = true,
+                    ) {
+                        PosterPlaceholder(other.name, Modifier.fillMaxSize())
+                        if (other.poster != null) {
+                            AsyncImage(
+                                model = rememberImage(other.poster, 240, 360),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                    Text(other.name, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
 }

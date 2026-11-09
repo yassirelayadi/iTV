@@ -249,6 +249,10 @@ private fun App(viewModel: AppViewModel) {
                     val shownDetail = lastDetail[0]
                     if (shownDetail != null) {
                         // La fiche garde le curseur à l'intérieur : la télécommande ne peut pas aller dans la liste dessous.
+                        val similar = androidx.compose.runtime.produceState<List<fr.poptv.player.data.VodItem>>(emptyList(), shownDetail.item.id) {
+                            value = emptyList()
+                            value = runCatching { viewModel.similarTo(shownDetail.item, shownDetail.isSeries) }.getOrDefault(emptyList())
+                        }.value
                         Box(modifier = Modifier.fillMaxSize().focusProperties { exit = { FocusRequester.Cancel } }.focusGroup()) {
                         DetailScreen(
                             detail = shownDetail,
@@ -263,6 +267,8 @@ private fun App(viewModel: AppViewModel) {
                                 .categories.firstOrNull { it.id == shownDetail.item.categoryId }?.name,
                             backdrop = (state.picks.featured + state.picks.topMovies + state.picks.topSeries + state.picks.featuredSeries)
                                 .firstOrNull { it.item.id == shownDetail.item.id }?.backdrop,
+                            similar = similar,
+                            onOpenSimilar = { other -> if (shownDetail.isSeries) viewModel.openSeries(other) else viewModel.openMovie(other) },
                         )
                         }
                     }

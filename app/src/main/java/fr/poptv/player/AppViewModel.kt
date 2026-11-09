@@ -494,6 +494,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Fiches et lecture des films et séries (VodController) ----
 
+    suspend fun similarTo(item: VodItem, isSeries: Boolean): List<VodItem> = tmdb.similar(item, isSeries)
     fun openMovie(item: VodItem) = vod.openMovie(item)
     fun openSeries(item: VodItem) = vod.openSeries(item)
     fun closeDetail() = vod.closeDetail()

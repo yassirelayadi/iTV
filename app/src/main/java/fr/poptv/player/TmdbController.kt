@@ -298,6 +298,36 @@ class TmdbController(
         out
     }
 
+    /**
+     * Titres similaires à un film ou une série : recommandations TMDB retrouvées dans le catalogue ;
+     * complétées par les mieux notés de la même catégorie quand TMDB en donne peu (ou sans clé).
+     */
+    suspend fun similar(item: VodItem, tv: Boolean): List<VodItem> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val section = if (tv) Section.SERIES else Section.MOVIES
+        val hidden = if (tv) _state.value.hiddenSeries else _state.value.hiddenMovies
+        val out = ArrayList<VodItem>()
+        val key = tmdbKeyValue
+        if (key != null) {
+            val recs = recsFor(key, item, tv)
+            if (recs.isNotEmpty()) {
+                val index = TmdbMatcher.lookupIn(section, recs, hidden)
+                for (t in recs) {
+                    val match = TmdbMatcher.find(index, t) ?: continue
+                    if (match.id != item.id && out.none { it.id == match.id }) out.add(match)
+                    if (out.size >= 14) break
+                }
+            }
+        }
+        if (out.size < 8 && item.categoryId.isNotEmpty()) {
+            CatalogDb.inCategory(section, item.categoryId, 80)
+                .filter { it.id != item.id && it.poster != null && out.none { o -> o.id == it.id } }
+                .sortedByDescending { it.rating?.replace(',', '.')?.toFloatOrNull() ?: 0f }
+                .take(14 - out.size)
+                .let { out.addAll(it) }
+        }
+        out
+    }
+
     private fun recsFor(key: String, item: VodItem, tv: Boolean): List<fr.poptv.player.data.TmdbTitle> {
         val cacheKey = (if (tv) "s:" else "m:") + item.id
         recCache[cacheKey]?.let { return it }
