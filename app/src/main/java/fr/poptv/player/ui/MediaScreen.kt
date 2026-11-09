@@ -237,19 +237,18 @@ fun MediaScreen(
 
     // Le fond prend la couleur de l'affiche sélectionnée.
     var focusedInfo by remember { mutableStateOf<HeroInfo?>(null) }
-    val onFocusInfo: (HeroInfo) -> Unit = { focusedInfo = it }
-    val initialInfo = remember(resume, shelves, featured) {
-        featured.firstOrNull()?.let { pick ->
-            HeroInfo(
-                title = pick.item.name,
-                meta = listOfNotNull(ratingLabel(pick.item.rating)?.let { "★ $it" }, pick.item.year).joinToString("   "),
-                plot = pick.overview ?: pick.item.plot,
-                poster = pick.item.poster,
-                tag = "À L'AFFICHE",
-                item = pick.item,
-            )
-        } ?: shelves.firstOrNull()?.items?.firstOrNull()?.let { it.hero(categoryNames[it.categoryId]) }
-            ?: resume.firstOrNull()?.let { HeroInfo(it.title, "", null, it.poster, "REPRENDRE", resume = it) }
+    // Le bandeau ne sert que le Top 10 : il suit les affiches du Top 10, et se replie quand on descend dans les autres rangées.
+    val hasTop = top.size >= 3
+    var heroOpen by remember { mutableStateOf(true) }
+    val onFocusInfo: (HeroInfo) -> Unit = { focusedInfo = it; heroOpen = true }
+    val onOtherFocus: (HeroInfo) -> Unit = { heroOpen = false }
+    val heroWeight by androidx.compose.animation.core.animateFloatAsState(
+        if (heroOpen && hasTop) 0.47f else 0f,
+        tween(Dur.Slow, easing = AppleEase),
+        label = "heroWeight",
+    )
+    val initialInfo = remember(top, categoryNames) {
+        top.firstOrNull()?.let { it.item.hero(categoryNames[it.item.categoryId]) }
     }
     val hero = focusedInfo ?: initialInfo
     val tint = rememberPosterTint(hero?.poster)
@@ -272,8 +271,8 @@ fun MediaScreen(
         headerVisible = true,
         alwaysHeader = gridMode || catalog.size == 0,
         onSearchRequest = { scope.launch { listState.scrollToItem(0) } },
-        backdrop = if (hero != null && !gridMode && catalog.size > 0) {
-            { HeroBackdrop(hero, tmdbInfo[hero.item?.id]?.backdrop) }
+        backdrop = if (hero != null && hasTop && !gridMode && catalog.size > 0) {
+            { HeroBackdrop(hero, tmdbInfo[hero.item?.id]?.backdrop, alpha = heroWeight / 0.47f) }
         } else {
             null
         },
@@ -338,10 +337,10 @@ fun MediaScreen(
 
             else -> {
             // Bandeau (suit l'élément sélectionné) en haut, rangées dessous : une rangée visible, la suivante qui dépasse.
-            HeroText(
+            if (hasTop && heroWeight > 0.01f) HeroText(
                 hero = hero,
-                overview = hero?.item?.id?.let { tmdbInfo[it]?.overview },
-                modifier = Modifier.weight(0.47f),
+                overview = null,
+                modifier = Modifier.weight(heroWeight).graphicsLayer { alpha = heroWeight / 0.47f },
                 onOpen = onOpen,
                 onResume = onResume,
                 onFocusInfo = onFocusInfo,
@@ -352,11 +351,6 @@ fun MediaScreen(
                 contentPadding = PaddingValues(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (resume.isNotEmpty()) {
-                    item(key = "resume") {
-                        ResumeRow(resume, onResume, onFocusInfo)
-                    }
-                }
                 if (top.size >= 3) {
                     item(key = "top10") {
                         TopRow(
@@ -368,6 +362,11 @@ fun MediaScreen(
                         )
                     }
                 }
+                if (resume.isNotEmpty()) {
+                    item(key = "resume") {
+                        ResumeRow(resume, onResume, onOtherFocus)
+                    }
+                }
                 if (favItems.isNotEmpty()) {
                     item(key = "favs") {
                         VodShelfRow(
@@ -375,7 +374,7 @@ fun MediaScreen(
                             categoryNames = categoryNames,
                             onOpen = onOpen,
                             onSeeAll = {},
-                            onFocusInfo = onFocusInfo,
+                            onFocusInfo = onOtherFocus,
                         )
                     }
                 }
@@ -387,7 +386,7 @@ fun MediaScreen(
                             categoryNames = categoryNames,
                             onOpen = onOpen,
                             onSeeAll = {},
-                            onFocusInfo = onFocusInfo,
+                            onFocusInfo = onOtherFocus,
                         )
                     }
                 }
@@ -397,7 +396,7 @@ fun MediaScreen(
                         categoryNames = categoryNames,
                         onOpen = onOpen,
                         onSeeAll = { onSelectCategory(shelf.id) },
-                        onFocusInfo = onFocusInfo,
+                        onFocusInfo = onOtherFocus,
                     )
                 }
             }
@@ -409,9 +408,9 @@ fun MediaScreen(
 
 /** Image plein écran derrière le menu et le contenu : grande image TMDB si on l'a, sinon l'affiche, avec voiles de lisibilité. */
 @Composable
-private fun HeroBackdrop(hero: HeroInfo, backdrop: String?) {
+private fun HeroBackdrop(hero: HeroInfo, backdrop: String?, alpha: Float = 1f) {
     val image = backdrop ?: hero.poster
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha }) {
         Crossfade(targetState = image, animationSpec = tween(500), label = "heroImage") { url ->
             if (url != null) {
                 AsyncImage(
