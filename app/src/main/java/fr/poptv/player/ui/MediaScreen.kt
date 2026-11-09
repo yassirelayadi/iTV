@@ -455,8 +455,8 @@ private fun HeroText(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = ScreenPadding, end = ScreenPadding, bottom = 8.dp)
-                .fillMaxWidth(if (compact) 0.9f else 0.52f),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else if (hero.title.length > 22) 6.dp else 8.dp),
+                .fillMaxWidth(if (compact) 0.9f else 1f),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
         ) {
             if (!hero.tag.isNullOrBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -472,7 +472,7 @@ private fun HeroText(
                     )
                 }
             }
-            val longTitle = hero.title.length > 22
+            val longTitle = hero.title.length > (if (compact) 22 else 40)
             Text(
                 hero.title,
                 color = TextPrimary,
