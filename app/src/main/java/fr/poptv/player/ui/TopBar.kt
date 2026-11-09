@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -83,6 +87,7 @@ fun AppShell(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
     headerVisible: Boolean = true,
+    alwaysHeader: Boolean = true,
     onSearchRequest: (() -> Unit)? = null,
     backdrop: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -98,31 +103,33 @@ fun AppShell(
         }
     }
 
-    Row(modifier = modifier.fillMaxSize()) {
-        SideRail(
-            state = state,
-            onSection = onSection,
-            onSearch = {
-                searchOpen = true
-                // En bas de la liste, l'en-tête est masqué : on remonte pour afficher le champ.
-                onSearchRequest?.invoke()
-            },
-            onSettings = onSettings,
-            sectionFocus = sectionFocus,
-        )
-        // Le fond optionnel (image du bandeau) passe derrière l'en-tête et le contenu.
-        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f).fillMaxHeight().appear()) {
-            backdrop?.invoke(this)
-            Column(modifier = Modifier.fillMaxSize()) {
-                AnimatedVisibility(visible = headerVisible) {
-                    ScreenHeader(
-                        state = state,
-                        showSearch = searchOpen || state.query.isNotEmpty(),
-                        focusSearch = searchOpen,
-                        onQuery = onQuery,
-                    )
+    // Le fond (image du bandeau) occupe tout l'écran, derrière le menu, l'en-tête et le contenu.
+    androidx.compose.foundation.layout.Box(modifier = modifier.fillMaxSize()) {
+        backdrop?.invoke(this)
+        Row(modifier = Modifier.fillMaxSize()) {
+            SideRail(
+                state = state,
+                onSection = onSection,
+                onSearch = {
+                    searchOpen = true
+                    // En bas de la liste, l'en-tête est masqué : on remonte pour afficher le champ.
+                    onSearchRequest?.invoke()
+                },
+                onSettings = onSettings,
+                sectionFocus = sectionFocus,
+            )
+            androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f).fillMaxHeight().appear()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    AnimatedVisibility(visible = headerVisible && (alwaysHeader || searchOpen || state.query.isNotEmpty())) {
+                        ScreenHeader(
+                            state = state,
+                            showSearch = searchOpen || state.query.isNotEmpty(),
+                            focusSearch = searchOpen,
+                            onQuery = onQuery,
+                        )
+                    }
+                    content()
                 }
-                content()
             }
         }
     }
@@ -191,60 +198,79 @@ private fun SideRail(
     sectionFocus: FocusRequester,
 ) {
     val compact = LocalCompact.current
+    val collapsed = if (compact) 58.dp else 88.dp
+    var expanded by remember { mutableStateOf(false) }
+    val railWidth by androidx.compose.animation.core.animateDpAsState(
+        if (expanded) 240.dp else collapsed,
+        androidx.compose.animation.core.tween(Dur.Normal, easing = AppleEase),
+        label = "railWidth",
+    )
     fun pick(section: Section) {
         if (section != state.section) RailFocus.pending = true
         onSection(section)
     }
-    Column(
+    // Le menu se déplie par-dessus le contenu (sans le pousser) dès qu'il a le focus.
+    androidx.compose.foundation.layout.Box(
         modifier = Modifier
-            .width(if (compact) 58.dp else 80.dp)
+            .width(collapsed)
             .fillMaxHeight()
-            .background(Color(0xC704080E))
-            .drawBehind {
-                // Filet fin à droite du menu
-                drawRect(Color(0x2496CDFF), topLeft = androidx.compose.ui.geometry.Offset(size.width - 1f, 0f), size = androidx.compose.ui.geometry.Size(1f, size.height))
-            }
-            .padding(vertical = if (compact) 12.dp else 22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
+            .zIndex(2f)
+            .wrapContentWidth(Alignment.Start, unbounded = true),
     ) {
-        LogoText(size = if (compact) 16.sp else 22.sp)
-        Spacer(Modifier.height(if (compact) 6.dp else 14.dp))
-        RailButton(AppIcons.Tv, "Chaînes", selected = state.section == Section.LIVE, focusRequester = sectionFocus.takeIf { state.section == Section.LIVE }) { pick(Section.LIVE) }
-        if (state.vodSupported) {
-            RailButton(AppIcons.Movie, "Films", selected = state.section == Section.MOVIES, focusRequester = sectionFocus.takeIf { state.section == Section.MOVIES }) { pick(Section.MOVIES) }
-            RailButton(AppIcons.Library, "Séries", selected = state.section == Section.SERIES, focusRequester = sectionFocus.takeIf { state.section == Section.SERIES }) { pick(Section.SERIES) }
+        Column(
+            modifier = Modifier
+                .width(railWidth)
+                .fillMaxHeight()
+                .background(Brush.horizontalGradient(listOf(Color(0xF205080D), Color(0xCC05080D), Color(0x0005080D))))
+                .onFocusChanged { expanded = it.hasFocus }
+                .padding(vertical = if (compact) 12.dp else 22.dp, horizontal = (collapsed - if (compact) 38.dp else 50.dp) / 2),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
+        ) {
+            androidx.compose.foundation.layout.Box(Modifier.width(if (compact) 38.dp else 50.dp), contentAlignment = Alignment.Center) {
+                LogoText(size = if (compact) 16.sp else 22.sp)
+            }
+            Spacer(Modifier.height(if (compact) 6.dp else 14.dp))
+            RailButton(AppIcons.Tv, "Chaînes", expanded, selected = state.section == Section.LIVE, focusRequester = sectionFocus.takeIf { state.section == Section.LIVE }) { pick(Section.LIVE) }
+            if (state.vodSupported) {
+                RailButton(AppIcons.Movie, "Films", expanded, selected = state.section == Section.MOVIES, focusRequester = sectionFocus.takeIf { state.section == Section.MOVIES }) { pick(Section.MOVIES) }
+                RailButton(AppIcons.Library, "Séries", expanded, selected = state.section == Section.SERIES, focusRequester = sectionFocus.takeIf { state.section == Section.SERIES }) { pick(Section.SERIES) }
+            }
+            Spacer(Modifier.weight(1f))
+            RailButton(Icons.Filled.Search, "Recherche", expanded, selected = false, onClick = onSearch)
+            RailButton(Icons.Filled.Settings, "Réglages", expanded, selected = false, onClick = onSettings)
         }
-        Spacer(Modifier.weight(1f))
-        RailButton(Icons.Filled.Search, "Rechercher", selected = false, onClick = onSearch)
-        RailButton(Icons.Filled.Settings, "Réglages", selected = false, onClick = onSettings)
     }
 }
 
-/** Icône du menu latéral : pastille bleue si c'est la section affichée, blanche au focus. */
+/** Entrée du menu latéral : icône seule au repos, icône + libellé quand le menu est déplié. */
 @Composable
-private fun RailButton(icon: ImageVector, label: String, selected: Boolean, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
+private fun RailButton(icon: ImageVector, label: String, expanded: Boolean, selected: Boolean, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
+    val compact = LocalCompact.current
+    val size = if (compact) 38.dp else 50.dp
     FocusItem(
         onClick = onClick,
-        modifier = Modifier.size(if (LocalCompact.current) 38.dp else 50.dp).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
-        shape = RoundedCornerShape(if (LocalCompact.current) 13.dp else 18.dp),
-        focusScale = 1.1f,
-        idleColor = if (selected) Accent else Color.Transparent,
-        focusedColor = if (selected) Accent else Color.White,
-        idleBrush = if (selected) AccentBrush else null,
-        glow = selected,
-        focusRing = selected,
-        ringColor = Color.White,
+        modifier = (if (expanded) Modifier.fillMaxWidth().height(size) else Modifier.size(size))
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+        shape = RoundedCornerShape(if (compact) 13.dp else 16.dp),
+        focusScale = 1.04f,
+        idleColor = if (selected) Color(0x2EFFFFFF) else Color.Transparent,
+        focusedColor = Color.White,
     ) { focused ->
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = when {
-                selected -> Color.White
-                focused -> Color.Black
-                else -> TextSecondary
-            },
-            modifier = Modifier.align(Alignment.Center).size(if (LocalCompact.current) 21.dp else 26.dp),
-        )
+        val tint = when {
+            focused -> Color.Black
+            selected -> Color.White
+            else -> TextSecondary
+        }
+        Row(
+            modifier = Modifier.fillMaxHeight().padding(horizontal = (size - if (compact) 21.dp else 26.dp) / 2),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(if (compact) 21.dp else 26.dp))
+            if (expanded) {
+                Text(label, color = tint, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
     }
 }

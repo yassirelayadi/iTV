@@ -184,6 +184,30 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 }
 
 /** Champ de saisie sans bordure, avec simple texte d'indication. */
+
+/** Bouton secondaire translucide (à côté du bouton principal). */
+@Composable
+fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
+    FocusItem(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        focusScale = 1.04f,
+        idleColor = Color(0x33FFFFFF),
+        focusedColor = Color.White,
+    ) { focused ->
+        val tint = if (focused) Color.Black else Color.White
+        Row(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            Text(text, color = tint, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
 @Composable
 fun MinimalField(
     value: String,

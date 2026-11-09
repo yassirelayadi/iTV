@@ -12,6 +12,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.Icons
@@ -88,7 +89,16 @@ private val LocalVodFavs = androidx.compose.runtime.compositionLocalOf { VodFavs
 private data class VodShelf(val id: String, val title: String, val items: List<VodItem>)
 
 /** Contenu du bandeau du haut : l'élément sélectionné (titre, infos, résumé). */
-private data class HeroInfo(val title: String, val meta: String, val plot: String?, val poster: String?)
+private data class HeroInfo(
+    val title: String,
+    val meta: String,
+    val plot: String?,
+    val poster: String?,
+    /** Ligne au-dessus du titre (catégorie, « À L'AFFICHE », « REPRENDRE »). */
+    val tag: String? = null,
+    val item: VodItem? = null,
+    val resume: ResumeEntry? = null,
+)
 
 private var moviesShelves: Pair<VodCatalog, List<VodShelf>>? = null
 private var seriesShelves: Pair<VodCatalog, List<VodShelf>>? = null
@@ -141,9 +151,11 @@ private fun ratingLabel(raw: String?): String? {
 
 private fun VodItem.hero(categoryName: String?): HeroInfo = HeroInfo(
     title = name,
-    meta = listOfNotNull(categoryName, year, ratingLabel(rating)?.let { "★ $it" }).joinToString("  ·  "),
+    meta = listOfNotNull(ratingLabel(rating)?.let { "★ $it" }, year).joinToString("   "),
     plot = plot,
     poster = poster,
+    tag = categoryName?.uppercase(Locale.FRANCE),
+    item = this,
 )
 
 /** Écran des films ou des séries : rangées d'affiches, ou grille si on choisit une catégorie. */
@@ -226,9 +238,18 @@ fun MediaScreen(
     // Le fond prend la couleur de l'affiche sélectionnée.
     var focusedInfo by remember { mutableStateOf<HeroInfo?>(null) }
     val onFocusInfo: (HeroInfo) -> Unit = { focusedInfo = it }
-    val initialInfo = remember(resume, shelves) {
-        resume.firstOrNull()?.let { HeroInfo(it.title, if (it.positionMs > 0) "Reprendre à ${formatTime(it.positionMs)}" else "Épisode suivant", null, it.poster) }
-            ?: shelves.firstOrNull()?.items?.firstOrNull()?.let { it.hero(categoryNames[it.categoryId]) }
+    val initialInfo = remember(resume, shelves, featured) {
+        featured.firstOrNull()?.let { pick ->
+            HeroInfo(
+                title = pick.item.name,
+                meta = listOfNotNull(ratingLabel(pick.item.rating)?.let { "★ $it" }, pick.item.year).joinToString("   "),
+                plot = pick.overview ?: pick.item.plot,
+                poster = pick.item.poster,
+                tag = "À L'AFFICHE",
+                item = pick.item,
+            )
+        } ?: shelves.firstOrNull()?.items?.firstOrNull()?.let { it.hero(categoryNames[it.categoryId]) }
+            ?: resume.firstOrNull()?.let { HeroInfo(it.title, "", null, it.poster, "REPRENDRE", resume = it) }
     }
     val hero = focusedInfo ?: initialInfo
     val tint = rememberPosterTint(hero?.poster)
@@ -236,16 +257,10 @@ fun MediaScreen(
     // Le titre se masque quand on descend dans la liste.
     val scope = rememberCoroutineScope()
 
-    // Bandeau « À l'affiche » : image affichée (change toutes les 8 s, sauf quand le bouton a le focus).
-    var featIndex by remember { mutableIntStateOf(0) }
-    var featPaused by remember { mutableStateOf(false) }
-    LaunchedEffect(featured.size, featPaused) {
-        while (featured.size > 1 && !featPaused) {
-            delay(8_000)
-            featIndex = (featIndex + 1) % featured.size
-        }
+    // Grandes images et résumés TMDB des titres tendance : le fond du bandeau s'en sert quand l'élément en a une.
+    val tmdbInfo = remember(featured, top) {
+        (featured + top).associate { it.item.id to it }
     }
-    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
     androidx.compose.runtime.CompositionLocalProvider(LocalVodFavs provides vodFavs) {
     AppShell(
@@ -254,10 +269,11 @@ fun MediaScreen(
         onQuery = onQuery,
         onSettings = onSettings,
         modifier = Modifier.appBackground(tint),
-        headerVisible = gridMode || !scrolled || catalog.size == 0,
+        headerVisible = true,
+        alwaysHeader = gridMode || catalog.size == 0,
         onSearchRequest = { scope.launch { listState.scrollToItem(0) } },
-        backdrop = if (featured.isNotEmpty() && !gridMode && catalog.size > 0) {
-            { FeaturedBackdrop(featured[featIndex.coerceIn(0, featured.lastIndex)], listState) }
+        backdrop = if (hero != null && !gridMode && catalog.size > 0) {
+            { HeroBackdrop(hero, tmdbInfo[hero.item?.id]?.backdrop) }
         } else {
             null
         },
@@ -320,25 +336,22 @@ fun MediaScreen(
                 }
             }
 
-            else -> LazyColumn(
+            else -> {
+            // Bandeau (suit l'élément sélectionné) en haut, rangées dessous : une rangée visible, la suivante qui dépasse.
+            HeroText(
+                hero = hero,
+                overview = hero?.item?.id?.let { tmdbInfo[it]?.overview },
+                modifier = Modifier.weight(0.44f),
+                onOpen = onOpen,
+                onResume = onResume,
+                onFocusInfo = onFocusInfo,
+            )
+            LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
+                modifier = Modifier.weight(0.56f).fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (featured.isNotEmpty()) {
-                    item(key = "featured") {
-                        FeaturedHero(
-                            pick = featured[featIndex.coerceIn(0, featured.lastIndex)],
-                            count = featured.size,
-                            index = featIndex,
-                            onOpen = onOpen,
-                            onFocusInfo = onFocusInfo,
-                            onFocused = { scope.launch { listState.animateScrollToItem(0) } },
-                            onPausedChange = { featPaused = it },
-                        )
-                    }
-                }
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
                         ResumeRow(resume, onResume, onFocusInfo)
@@ -388,111 +401,100 @@ fun MediaScreen(
                     )
                 }
             }
-        }
-    }
-    }
-}
-
-/** Image du bandeau « À l'affiche » : plein écran derrière l'en-tête, fondue vers le bas, qui défile avec la liste. */
-@Composable
-private fun FeaturedBackdrop(pick: TmdbPick, listState: LazyListState) {
-    val compact = LocalCompact.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (compact) 300.dp else 470.dp)
-            .graphicsLayer {
-                // Quitte l'écran avec le défilement de la liste.
-                translationY = -(if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else 100_000f)
-                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
             }
-            .drawWithContent {
-                drawContent()
-                // Fondu vers le fond de l'écran sur le bas de l'image.
-                drawRect(
-                    Brush.verticalGradient(0f to Color.Black, 0.55f to Color.Black, 1f to Color.Transparent),
-                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
-                )
-            },
-    ) {
-        Crossfade(targetState = pick.backdrop, animationSpec = tween(700), label = "featuredImage") { image ->
-            AsyncImage(
-                model = rememberImage(image, 1280, 720),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
         }
-        // Voile sombre à gauche pour la lisibilité du titre.
+    }
+    }
+}
+
+/** Image plein écran derrière le menu et le contenu : grande image TMDB si on l'a, sinon l'affiche, avec voiles de lisibilité. */
+@Composable
+private fun HeroBackdrop(hero: HeroInfo, backdrop: String?) {
+    val image = backdrop ?: hero.poster
+    Box(modifier = Modifier.fillMaxSize()) {
+        Crossfade(targetState = image, animationSpec = tween(500), label = "heroImage") { url ->
+            if (url != null) {
+                AsyncImage(
+                    model = rememberImage(url, 1280, 720),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    alignment = if (backdrop != null) Alignment.Center else androidx.compose.ui.BiasAlignment(0f, -0.45f),
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        // Voile à gauche (zone du texte) puis fondu vers le bas (zone des rangées).
         Box(
             modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(listOf(Color(0xE605080D), Color(0x7305080D), Color(0x1A05080D))),
+                Brush.horizontalGradient(0f to Color(0xF205080D), 0.4f to Color(0xB305080D), 0.72f to Color(0x2605080D), 1f to Color.Transparent),
             ),
         )
-        // Voile progressif dans l'image : il assombrit la zone du texte puis se fond avec l'image vers le bas,
-        // sans bord visible (il fait partie de l'image, qui s'estompe vers les rangées).
         Box(
             modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(0f to Color.Transparent, 0.3f to Color(0x40000000), 0.55f to Color(0x8C000000), 1f to Color(0x8C000000)),
+                Brush.verticalGradient(0f to Color.Transparent, 0.38f to Color(0x3305080D), 0.62f to Color(0xE605080D), 1f to Color(0xFF05080D)),
             ),
         )
     }
 }
 
-/** Texte et boutons du bandeau « À l'affiche », posés sur l'image plein écran. */
+/** Texte et boutons du bandeau : l'élément sélectionné (catégorie, titre, infos, résumé, boutons). */
 @Composable
-private fun FeaturedHero(
-    pick: TmdbPick,
-    count: Int,
-    index: Int,
+private fun HeroText(
+    hero: HeroInfo?,
+    overview: String?,
+    modifier: Modifier,
     onOpen: (VodItem) -> Unit,
+    onResume: (ResumeEntry) -> Unit,
     onFocusInfo: (HeroInfo) -> Unit,
-    onFocused: () -> Unit,
-    onPausedChange: (Boolean) -> Unit,
 ) {
     val compact = LocalCompact.current
-    val meta = listOfNotNull(pick.item.year, ratingLabel(pick.item.rating)?.let { "★ $it" }).joinToString("  ·  ")
-
-    // Hauteur fixe, dimensionnée pour le pire cas (titre sur 2 lignes + 2 lignes de résumé + bouton) :
-    // les rangées en dessous ne bougent pas quand le bandeau change de film.
-    Box(modifier = Modifier.fillMaxWidth().height(if (compact) 170.dp else 320.dp)) {
+    val favs = LocalVodFavs.current
+    Box(modifier = modifier.fillMaxWidth()) {
+        if (hero == null) return@Box
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = ScreenPadding, end = ScreenPadding, bottom = 6.dp)
-                .fillMaxWidth(),
+                .padding(start = ScreenPadding, end = ScreenPadding, bottom = 8.dp)
+                .fillMaxWidth(if (compact) 0.9f else 0.52f),
             verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
         ) {
+            if (!hero.tag.isNullOrBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.width(24.dp).height(3.dp).background(Accent, RoundedCornerShape(2.dp)))
+                    Text(
+                        hero.tag,
+                        color = Color(0xCCFFFFFF),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.8.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            val longTitle = hero.title.length > 22
             Text(
-                "À L'AFFICHE",
-                color = Accent,
-                fontSize = if (compact) 13.sp else 13.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.5.sp,
-            )
-            // Titre plus petit quand il est long, pour tenir sur deux lignes sans écraser le reste.
-            val longTitle = pick.item.name.length > 24
-            Text(
-                pick.item.name,
+                hero.title,
                 color = TextPrimary,
-                fontSize = if (compact) (if (longTitle) 17.sp else 20.sp) else (if (longTitle) 30.sp else 38.sp),
-                lineHeight = if (compact) (if (longTitle) 19.sp else 22.sp) else (if (longTitle) 32.sp else 40.sp),
+                fontSize = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 34.sp else 44.sp),
+                lineHeight = if (compact) 26.sp else (if (longTitle) 38.sp else 48.sp),
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.5).sp,
-                maxLines = 2,
+                maxLines = if (compact) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(0.7f),
             )
-            if (meta.isNotEmpty()) Text(meta, color = Color(0xFFE6EAF0), fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.Medium)
-            if (!compact && pick.overview != null) {
+            if (hero.meta.isNotEmpty()) {
+                Text(hero.meta, color = Color(0xE6EDF1F7), fontSize = if (compact) 13.sp else 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            val plot = (overview ?: hero.plot)?.trim().orEmpty()
+            if (!compact && plot.isNotEmpty()) {
                 Text(
-                    pick.overview,
-                    color = Color(0xFFEDF0F5),
+                    plot,
+                    color = Color(0xE6EDF0F5),
                     fontSize = 15.sp,
-                    lineHeight = 20.sp,
-                    maxLines = 3,
+                    lineHeight = 21.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -503,33 +505,24 @@ private fun FeaturedHero(
                     runCatching { heroFocus.requestFocus() }
                 }
             }
-            PrimaryButton(
-                text = "Voir la fiche",
-                onClick = {
-                    FocusMemory.key = "__hero"
-                    onOpen(pick.item)
-                },
-                icon = Icons.Filled.PlayArrow,
-                modifier = Modifier.focusRequester(heroFocus).onFocusChanged {
-                    onPausedChange(it.hasFocus)
-                    if (it.hasFocus) {
-                        onFocused()
-                        onFocusInfo(HeroInfo(pick.item.name, meta, pick.overview, pick.item.poster))
-                    }
-                },
-            )
-        }
-        if (count > 1) {
-            Row(
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = ScreenPadding, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                for (i in 0 until count) {
-                    Box(
-                        modifier = Modifier
-                            .height(6.dp)
-                            .width(if (i == index) 24.dp else 6.dp)
-                            .background(if (i == index) AccentBrush else Brush.linearGradient(listOf(Color(0x66FFFFFF), Color(0x66FFFFFF))), RoundedCornerShape(3.dp)),
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
+                PrimaryButton(
+                    text = if (hero.resume != null) "Reprendre" else "Voir la fiche",
+                    onClick = {
+                        FocusMemory.key = "__hero"
+                        val entry = hero.resume
+                        val target = hero.item
+                        if (entry != null) onResume(entry) else if (target != null) onOpen(target)
+                    },
+                    icon = Icons.Filled.PlayArrow,
+                    modifier = Modifier.focusRequester(heroFocus),
+                )
+                val key = hero.item?.id?.let { favs.prefix + it }
+                if (key != null && !compact) {
+                    SecondaryButton(
+                        text = if (key in favs.keys) "Dans ma liste" else "Ma liste",
+                        onClick = { favs.toggle(key) },
+                        icon = if (key in favs.keys) AppIcons.Check else Icons.Filled.Add,
                     )
                 }
             }
@@ -551,7 +544,7 @@ private fun TopRow(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle(title)
         LazyRow(
-            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
         ) {
             itemsIndexed(picks, key = { _, p -> p.item.id }) { i, pick ->
@@ -575,8 +568,8 @@ private fun TopRow(
                         onFocus = { onFocusInfo(pick.item.hero(categoryNames[pick.item.categoryId])) },
                         favKey = pick.item.id,
                         modifier = Modifier
-                            .padding(start = if (i == 9) (if (compact) 56.dp else 104.dp) else (if (compact) 34.dp else 64.dp))
-                            .width(posterWidth()),
+                            .padding(start = if (i == 9) (if (compact) 56.dp else 104.dp) else (if (compact) 34.dp else 64.dp)),
+                        width = posterWidth(),
                     )
                 }
             }
@@ -604,7 +597,7 @@ private fun MediaTabs(categories: List<Category>, selected: String, onSelect: (S
 private fun ShelfTitle(text: String) {
     Text(
         text,
-        fontSize = 24.sp,
+        fontSize = 20.sp,
         fontWeight = FontWeight.ExtraBold,
         letterSpacing = (-0.4).sp,
         color = TextPrimary,
@@ -627,7 +620,7 @@ private fun ResumeRow(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle("Reprendre")
         LazyRow(
-            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(shown, key = { resumeGroup(it) }) { entry ->
@@ -641,9 +634,10 @@ private fun ResumeRow(
                     onClick = { onResume(entry) },
                     onFocus = {
                         val at = if (entry.positionMs > 0) "Reprendre à ${formatTime(entry.positionMs)}" else "Épisode suivant"
-                        onFocusInfo(HeroInfo(name, if (episodeLabel.isNotEmpty()) "$episodeLabel · $at" else at, null, entry.poster))
+                        onFocusInfo(HeroInfo(name, if (episodeLabel.isNotEmpty()) "$episodeLabel · $at" else at, null, entry.poster, "REPRENDRE", resume = entry))
                     },
-                    modifier = Modifier.width(posterWidth()),
+                    aspect = 16f / 9f,
+                    width = if (LocalCompact.current) 150.dp else 236.dp,
                 )
             }
         }
@@ -657,7 +651,7 @@ private fun resumeGroup(e: ResumeEntry): String =
 
 /** Largeur d'une affiche : réduite sur téléphone. */
 @Composable
-private fun posterWidth() = if (LocalCompact.current) 88.dp else 150.dp
+private fun posterWidth() = if (LocalCompact.current) 88.dp else 132.dp
 
 @Composable
 private fun VodShelfRow(
@@ -673,7 +667,7 @@ private fun VodShelfRow(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ShelfTitle(shelf.title)
         LazyRow(
-            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(visible, key = { it.id }) { item ->
@@ -684,7 +678,9 @@ private fun VodShelfRow(
                     rating = ratingLabel(item.rating),
                     onFocus = { onFocusInfo(item.hero(categoryNames[item.categoryId])) },
                     favKey = item.id,
-                    modifier = Modifier.width(posterWidth()),
+                    width = posterWidth(),
+                    wideOnFocus = !LocalCompact.current,
+                    subtitle = listOfNotNull(item.year, categoryNames[item.categoryId]).joinToString(" · "),
                 )
             }
             if (shelf.items.size > SHELF_LIMIT && shelf.id != SHELF_RECENT && shelf.id != SHELF_TOP && shelf.id != SHELF_FAV && shelf.id != SHELF_FORYOU) {
@@ -709,7 +705,11 @@ private fun VodShelfRow(
     }
 }
 
-/** Affiche (2:3 par défaut, 16:9 pour « Reprendre ») avec le titre dessous et, si fourni, une barre de progression. */
+/**
+ * Affiche (2:3 par défaut, 16:9 pour « Reprendre ») avec le titre dessous et, si fourni, une barre de progression.
+ * Avec [width] et [wideOnFocus], la vignette s'élargit en format paysage quand elle a le focus
+ * (titre et infos incrustés dans l'image) ; sa hauteur ne change pas.
+ */
 @Composable
 private fun PosterTile(
     title: String,
@@ -721,6 +721,9 @@ private fun PosterTile(
     aspect: Float = 2f / 3f,
     onFocus: () -> Unit = {},
     favKey: String? = null,
+    width: androidx.compose.ui.unit.Dp? = null,
+    wideOnFocus: Boolean = false,
+    subtitle: String? = null,
 ) {
     val favs = LocalVodFavs.current
     val isFav = favKey != null && (favs.prefix + favKey) in favs.keys
@@ -735,21 +738,30 @@ private fun PosterTile(
     }
     var tileFocused by remember { mutableStateOf(false) }
     val titleColor by animateColorAsState(if (tileFocused) TextPrimary else TextSecondary, label = "titleColor")
+    val wide = wideOnFocus && width != null
+    val shownWidth = if (width == null) null else {
+        val target = if (wide && tileFocused) width * 2.3f else width
+        androidx.compose.animation.core.animateDpAsState(target, androidx.compose.animation.core.tween(Dur.Normal, easing = AppleEase), label = "tileWidth").value
+    }
+    val overlayAlpha by androidx.compose.animation.core.animateFloatAsState(if (wide && tileFocused) 1f else 0f, androidx.compose.animation.core.tween(Dur.Normal), label = "tileOverlay")
 
     Column(
-        modifier = modifier.onFocusChanged {
-            tileFocused = it.hasFocus
-            if (it.hasFocus) onFocus()
-        },
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier
+            .then(if (shownWidth != null) Modifier.width(shownWidth) else Modifier)
+            .onFocusChanged {
+                tileFocused = it.hasFocus
+                if (it.hasFocus) onFocus()
+            },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         FocusItem(
             onClick = {
                 FocusMemory.key = memoryKey
                 onClick()
             },
-            modifier = Modifier.fillMaxWidth().aspectRatio(aspect).focusRequester(tileFocus),
-            focusScale = 1.08f,
+            modifier = (if (width != null) Modifier.fillMaxWidth().height(width / aspect) else Modifier.fillMaxWidth().aspectRatio(aspect))
+                .focusRequester(tileFocus),
+            focusScale = if (wide) 1.02f else 1.08f,
             focusRing = true,
             onLongClick = favKey?.let { k -> { favs.toggle(favs.prefix + k) } },
         ) {
@@ -768,13 +780,27 @@ private fun PosterTile(
             PosterPlaceholder(title, Modifier.fillMaxSize())
             if (poster != null) {
                 AsyncImage(
-                    model = rememberImage(poster, 300, 450),
+                    model = rememberImage(poster, if (wide) 520 else 300, if (wide) 780 else 450),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    alignment = if (aspect > 1f || (wide && tileFocused)) androidx.compose.ui.BiasAlignment(0f, -0.55f) else Alignment.Center,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            if (rating != null) {
+            if (overlayAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAlpha }
+                        .background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xE6000000))),
+                ) {
+                    Column(modifier = Modifier.align(Alignment.BottomStart).padding(14.dp)) {
+                        Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (!subtitle.isNullOrBlank()) {
+                            Text(subtitle, color = Color(0xCCFFFFFF), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+            if (rating != null && overlayAlpha < 0.5f) {
                 Text(
                     "★ $rating",
                     color = Color.White,
@@ -807,11 +833,11 @@ private fun PosterTile(
         Text(
             title,
             color = titleColor,
-            fontSize = if (LocalCompact.current) 13.sp else 15.sp,
+            fontSize = if (LocalCompact.current) 13.sp else 14.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 4.dp),
+            modifier = Modifier.padding(horizontal = 4.dp).graphicsLayer { alpha = 1f - overlayAlpha },
         )
     }
 }
