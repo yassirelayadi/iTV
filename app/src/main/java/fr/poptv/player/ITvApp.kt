@@ -38,7 +38,7 @@ class ITvApp : Application(), ImageLoaderFactory {
             DiskCache.Builder().directory(cacheDir.resolve("images")).maxSizeBytes(200L * 1024 * 1024).build()
         }
         .respectCacheHeaders(false)
-        .allowRgb565(true) // affiches sans transparence : moitié moins de mémoire
+        // Pas de RGB565 : il rendait les dégradés des affiches en escalier.
         .crossfade(false)
         .build()
 }

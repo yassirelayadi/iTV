@@ -454,37 +454,25 @@ private fun HeroText(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = ScreenPadding, end = ScreenPadding, bottom = 8.dp)
+                .padding(start = ScreenPadding, end = ScreenPadding, bottom = if (compact) 8.dp else 22.dp)
                 .fillMaxWidth(if (compact) 0.9f else 1f),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 12.dp),
         ) {
-            if (!hero.tag.isNullOrBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.width(24.dp).height(3.dp).background(Accent, RoundedCornerShape(2.dp)))
-                    Text(
-                        hero.tag,
-                        color = Color(0xCCFFFFFF),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.8.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
             val longTitle = hero.title.length > (if (compact) 22 else 40)
             Text(
                 hero.title,
                 color = TextPrimary,
-                fontSize = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 28.sp else 44.sp),
-                lineHeight = if (compact) 26.sp else (if (longTitle) 32.sp else 48.sp),
+                fontSize = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 26.sp else 36.sp),
+                lineHeight = if (compact) 26.sp else (if (longTitle) 30.sp else 42.sp),
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.5).sp,
                 maxLines = if (compact) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (hero.meta.isNotEmpty()) {
-                Text(hero.meta, color = Color(0xE6EDF1F7), fontSize = if (compact) 13.sp else 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Catégorie et note sur une seule ligne : un élément de moins, donc plus d'air.
+            val infoLine = listOfNotNull(hero.meta.ifEmpty { null }, hero.tag?.takeIf { it.isNotBlank() }).joinToString("   ·   ")
+            if (infoLine.isNotEmpty()) {
+                Text(infoLine, color = Color(0xE6EDF1F7), fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
             val restoreTick = FocusMemory.tick.intValue
@@ -494,7 +482,7 @@ private fun HeroText(
                     runCatching { heroFocus.requestFocus() }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 6.dp)) {
                 PrimaryButton(
                     text = if (hero.resume != null) "Reprendre" else "Voir la fiche",
                     onClick = {
