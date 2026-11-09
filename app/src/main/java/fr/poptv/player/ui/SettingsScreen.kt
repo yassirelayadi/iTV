@@ -21,6 +21,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -107,6 +109,17 @@ fun SettingsScreen(
                     onClick = onTmdb,
                 )
             }
+
+            val settingsContext = androidx.compose.ui.platform.LocalContext.current
+            var previewOn by remember { androidx.compose.runtime.mutableStateOf(PreviewPref.enabled(settingsContext)) }
+            SettingRow(
+                title = "Aperçu des chaînes",
+                subtitle = if (previewOn) "Activé · la vidéo se lance sur la chaîne sélectionnée (une seule connexion)" else "Désactivé",
+                onClick = {
+                    previewOn = !previewOn
+                    PreviewPref.set(settingsContext, previewOn)
+                },
+            )
 
             Spacer(Modifier.height(8.dp))
             SettingRow("Actualiser les catalogues", "Recharge les chaînes, films et séries", onRefresh)

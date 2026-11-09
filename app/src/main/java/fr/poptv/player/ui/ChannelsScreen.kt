@@ -54,11 +54,14 @@ import fr.poptv.player.UiState
 import fr.poptv.player.data.Channel
 import fr.poptv.player.data.EpgInfo
 import fr.poptv.player.data.Section
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
 
 private const val SHELF_LIMIT = 40
-private const val CAT_RECENT = "__recent"
-
-private data class Shelf(val id: String, val title: String, val channels: List<Channel>)
+private const val CAT_EVERY = "__every"
 
 @Composable
 fun ChannelsScreen(
@@ -79,27 +82,15 @@ fun ChannelsScreen(
         state.recent.mapNotNull { byId[it] }
     }
 
-    // Accueil : « Favoris », « Récents », puis une rangée horizontale par catégorie.
-    val shelves = remember(state.channels, state.categories, state.favorites, recentChannels) {
-        val byCategory = state.channels.groupBy { it.categoryId }
-        buildList {
-            val favorites = state.channels.filter { it.id in state.favorites }
-            if (favorites.isNotEmpty()) add(Shelf(CAT_FAV, "Favoris", favorites))
-            if (recentChannels.isNotEmpty()) add(Shelf(CAT_RECENT, "Récents", recentChannels))
-            state.categories.forEach { category ->
-                byCategory[category.id]?.let { add(Shelf(category.id, category.name, it)) }
-            }
-        }
-    }
-
     val query = state.query.trim()
-    val gridMode = query.isNotEmpty() || state.selectedCategory != CAT_ALL || shelves.isEmpty()
 
-    // Catégorie choisie ou recherche : grille de chaînes.
-    val gridChannels = remember(state.channels, state.favorites, state.selectedCategory, query) {
-        val base = when (state.selectedCategory) {
-            CAT_ALL -> state.channels
-            CAT_FAV -> state.channels.filter { it.id in state.favorites }
+    // Grille de cartes : les chaînes récentes par défaut (toutes s'il n'y en a pas encore), ou la catégorie choisie.
+    val gridChannels = remember(state.channels, state.favorites, state.selectedCategory, query, recentChannels) {
+        val base = when {
+            state.selectedCategory == CAT_FAV -> state.channels.filter { it.id in state.favorites }
+            state.selectedCategory == CAT_EVERY -> state.channels
+            state.selectedCategory == CAT_ALL ->
+                if (recentChannels.isNotEmpty() && query.isEmpty()) recentChannels else state.channels
             else -> state.channels.filter { it.categoryId == state.selectedCategory }
         }
         if (query.isEmpty()) base else base.filter { it.name.contains(query, ignoreCase = true) }
@@ -112,7 +103,6 @@ fun ChannelsScreen(
     }
 
     // Le titre se masque quand on descend dans la liste.
-    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     val searchScope = androidx.compose.runtime.rememberCoroutineScope()
 
     AppShell(
@@ -121,45 +111,13 @@ fun ChannelsScreen(
         onQuery = onQuery,
         onSettings = onSettings,
         modifier = Modifier.appBackground(),
-        headerVisible = gridMode || !scrolled,
+        headerVisible = true,
+        alwaysHeader = false,
         onSearchRequest = { searchScope.launch { listState.scrollToItem(0) } },
     ) {
-        CategoryTabs(state, onSelectCategory)
+        CategoryTabs(state, hasRecent = recentChannels.isNotEmpty(), onSelect = onSelectCategory)
 
-        if (!gridMode) {
-            val last = recentChannels.firstOrNull()
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                if (last != null) {
-                    item(key = "hero") {
-                        val among = remember(state.channels, last) {
-                            state.channels.filter { it.categoryId == last.categoryId }.ifEmpty { listOf(last) }
-                        }
-                        ResumeHero(
-                            channel = last,
-                            info = epg[last.id],
-                            onNeedEpg = onNeedEpg,
-                            onPlay = { onPlay(last, among) },
-                        )
-                    }
-                }
-                items(shelves, key = { it.id }) { shelf ->
-                    ShelfRow(
-                        shelf = shelf,
-                        epg = epg,
-                        onNeedEpg = onNeedEpg,
-                        favorites = state.favorites,
-                        onPlay = onPlay,
-                        onToggleFavorite = onToggleFavorite,
-                        onSeeAll = { onSelectCategory(shelf.id) },
-                    )
-                }
-            }
-        } else if (gridChannels.isEmpty()) {
+        if (gridChannels.isEmpty()) {
             when {
                 state.loading -> CatalogSkeleton()
                 state.selectedCategory == CAT_FAV && query.isEmpty() -> EmptyState(
@@ -177,6 +135,16 @@ fun ChannelsScreen(
                     onAction = { onQuery(""); onSelectCategory(CAT_ALL) },
                 )
             }
+        } else if (!LocalCompact.current) {
+            ChannelCardGrid(
+                channels = gridChannels,
+                epg = epg,
+                onNeedEpg = onNeedEpg,
+                favorites = state.favorites,
+                onPlay = { onPlay(it, gridChannels) },
+                onToggleFavorite = onToggleFavorite,
+                listState = listState,
+            )
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = tileWidth()),
@@ -202,13 +170,18 @@ fun ChannelsScreen(
 }
 
 @Composable
-private fun CategoryTabs(state: UiState, onSelect: (String) -> Unit) {
+private fun CategoryTabs(state: UiState, hasRecent: Boolean, onSelect: (String) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = CAT_ALL) {
-            Pill("Accueil", onClick = { onSelect(CAT_ALL) }, selected = state.selectedCategory == CAT_ALL)
+            Pill(if (hasRecent) "Récents" else "Toutes", onClick = { onSelect(CAT_ALL) }, selected = state.selectedCategory == CAT_ALL)
+        }
+        if (hasRecent) {
+            item(key = CAT_EVERY) {
+                Pill("Toutes", onClick = { onSelect(CAT_EVERY) }, selected = state.selectedCategory == CAT_EVERY)
+            }
         }
         item(key = CAT_FAV) {
             Pill("Favoris", onClick = { onSelect(CAT_FAV) }, selected = state.selectedCategory == CAT_FAV)
@@ -226,148 +199,6 @@ private fun CategoryTabs(state: UiState, onSelect: (String) -> Unit) {
 /** Largeur d'une carte de chaîne : réduite sur téléphone. */
 @Composable
 private fun tileWidth() = if (LocalCompact.current) 120.dp else 180.dp
-
-/** Bandeau du haut : la dernière chaîne regardée, avec un bouton pour la reprendre. */
-@Composable
-private fun ResumeHero(channel: Channel, info: EpgInfo?, onNeedEpg: (String) -> Unit, onPlay: () -> Unit) {
-    LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
-    val nowSec = System.currentTimeMillis() / 1000
-    val program = info?.now(nowSec)
-    Row(
-        modifier = Modifier
-            .padding(horizontal = ScreenPadding)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(if (LocalCompact.current) 18.dp else 26.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF1A5FB4), Color(0xFF0B1F3A))))
-            .padding(horizontal = if (LocalCompact.current) 14.dp else 24.dp, vertical = if (LocalCompact.current) 10.dp else 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (LocalCompact.current) 14.dp else 22.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(if (LocalCompact.current) 52.dp else 84.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color(0x33FFFFFF)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (channel.logo != null) {
-                AsyncImage(
-                    model = rememberImage(channel.logo, 256, 256),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().padding(12.dp),
-                )
-            } else {
-                Text(
-                    channel.name.take(2).uppercase(),
-                    color = TextPrimary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "DERNIÈRE CHAÎNE REGARDÉE",
-                color = TextSecondary,
-                fontSize = 13.sp,
-                letterSpacing = 0.8.sp,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    channel.name,
-                    color = TextPrimary,
-                    fontSize = if (LocalCompact.current) 18.sp else 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                LiveBadge(fontSize = 13.sp)
-            }
-            if (program != null) {
-                Text(
-                    "${program.title}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}",
-                    color = TextPrimary,
-                    fontSize = if (LocalCompact.current) 12.sp else 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.6f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0x40FFFFFF)),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(program.progress(nowSec))
-                            .fillMaxHeight()
-                            .background(Color.White),
-                    )
-                }
-            }
-        }
-        PrimaryButton("Reprendre", onClick = onPlay, icon = Icons.Filled.PlayArrow)
-    }
-}
-
-@Composable
-private fun ShelfRow(
-    shelf: Shelf,
-    epg: Map<String, EpgInfo>,
-    onNeedEpg: (String) -> Unit,
-    favorites: Set<String>,
-    onPlay: (Channel, List<Channel>) -> Unit,
-    onToggleFavorite: (String) -> Unit,
-    onSeeAll: () -> Unit,
-) {
-    val visible = remember(shelf.channels) { shelf.channels.take(SHELF_LIMIT) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            shelf.title,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextPrimary,
-            modifier = Modifier.padding(horizontal = ScreenPadding),
-        )
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            items(visible, key = { it.id }) { channel ->
-                ChannelTile(
-                    channel = channel,
-                    info = epg[channel.id],
-                    onNeedEpg = onNeedEpg,
-                    favorite = channel.id in favorites,
-                    onClick = { onPlay(channel, shelf.channels) },
-                    onLongClick = { onToggleFavorite(channel.id) },
-                    modifier = Modifier.width(tileWidth()),
-                )
-            }
-            if (shelf.channels.size > SHELF_LIMIT && shelf.id != CAT_RECENT) {
-                item(key = "see-all") {
-                    FocusItem(
-                        onClick = onSeeAll,
-                        modifier = Modifier.width(tileWidth()).aspectRatio(4f / 3f),
-                        focusScale = 1.08f,
-                        focusRing = true,
-                    ) {
-                        Text(
-                            "Tout voir",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.align(Alignment.Center),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 /** Carte d'une chaîne : logo au centre, nom dessous, pastille « EN DIRECT ». */
 @Composable
@@ -457,6 +288,180 @@ private fun ChannelTile(
                 fontSize = 17.sp,
                 modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
             )
+        }
+    }
+}
+
+private const val CARD_COLUMNS = 4
+
+/** Grille de cartes : lignes de 4, la carte qui a le focus s'élargit et lance l'aperçu en direct. */
+@Composable
+private fun ChannelCardGrid(
+    channels: List<Channel>,
+    epg: Map<String, EpgInfo>,
+    onNeedEpg: (String) -> Unit,
+    favorites: Set<String>,
+    onPlay: (Channel) -> Unit,
+    onToggleFavorite: (String) -> Unit,
+    listState: LazyListState,
+) {
+    val rows = remember(channels) { channels.chunked(CARD_COLUMNS) }
+    val context = LocalContext.current
+    val preview = remember { PreviewPref.enabled(context) }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        items(rows, key = { it.first().id }) { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenPadding),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                row.forEach { channel ->
+                    ChannelCardSlot(
+                        channel = channel,
+                        info = epg[channel.id],
+                        onNeedEpg = onNeedEpg,
+                        favorite = channel.id in favorites,
+                        preview = preview,
+                        onClick = { onPlay(channel) },
+                        onLongClick = { onToggleFavorite(channel.id) },
+                    )
+                }
+                repeat(CARD_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** Couleur d'une chaîne : stable, tirée de son nom (les logos n'ont pas de couleur de marque). */
+private fun channelColor(name: String): Color {
+    val hue = (kotlin.math.abs(name.lowercase().hashCode()) % 360).toFloat()
+    return Color.hsv(hue, 0.55f, 0.42f)
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.ChannelCardSlot(
+    channel: Channel,
+    info: EpgInfo?,
+    onNeedEpg: (String) -> Unit,
+    favorite: Boolean,
+    preview: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val grow by androidx.compose.animation.core.animateFloatAsState(
+        if (focused) 1.55f else 1f,
+        androidx.compose.animation.core.tween(Dur.Normal, easing = AppleEase),
+        label = "cardGrow",
+    )
+    Box(modifier = Modifier.weight(grow).onFocusChanged { focused = it.hasFocus }) {
+        ChannelCard(channel, info, onNeedEpg, favorite, preview, onClick, onLongClick)
+    }
+}
+
+/** Carte d'une chaîne : logo, programme en cours avec progression ; l'aperçu vidéo démarre après 1 s de focus. */
+@Composable
+private fun ChannelCard(
+    channel: Channel,
+    info: EpgInfo?,
+    onNeedEpg: (String) -> Unit,
+    favorite: Boolean,
+    preview: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
+    val nowSec = System.currentTimeMillis() / 1000
+    val program = info?.now(nowSec)
+    val shape = RoundedCornerShape(14.dp)
+    val color = remember(channel.name) { channelColor(channel.name) }
+
+    FocusItem(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = Modifier.fillMaxWidth().height(118.dp),
+        shape = shape,
+        focusScale = 1.03f,
+        focusRing = true,
+        idleColor = Color.Transparent,
+        focusedColor = Color.Transparent,
+    ) { focused ->
+        // Aperçu : un seul à la fois (celui de la carte au focus), démarré après une courte pause.
+        var previewOn by androidx.compose.runtime.remember { mutableStateOf(false) }
+        LaunchedEffect(focused, preview) {
+            if (focused && preview) {
+                delay(1_000)
+                previewOn = true
+            } else {
+                previewOn = false
+            }
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize().background(Brush.linearGradient(listOf(color, Color(0xFF0B0E14)))),
+        )
+        if (previewOn) {
+            ChannelPreview(channel.streamUrl, Modifier.fillMaxSize())
+        }
+        // Voile en bas pour la lisibilité du texte, y compris sur la vidéo.
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xCC000000)),
+            ),
+        )
+        Row(
+            modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(Color(0x59000000)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (channel.logo != null) {
+                    AsyncImage(
+                        model = rememberImage(channel.logo, 128, 128),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(4.dp),
+                    )
+                } else {
+                    Text(channel.name.take(2).uppercase(), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+            if (favorite) Text("★", color = Color.White, fontSize = 16.sp)
+        }
+        if (focused) {
+            LiveBadge(modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
+        }
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = if (program != null) 12.dp else 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                program?.title ?: channel.name,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (program != null) "${channel.name}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}" else "En direct",
+                color = Color(0xCCFFFFFF),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (program != null) {
+                Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
+                    Box(Modifier.fillMaxWidth(program.progress(nowSec)).fillMaxHeight().background(Color.White))
+                }
+            }
         }
     }
 }
