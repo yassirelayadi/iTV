@@ -173,11 +173,11 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
         focusedColor = Color.White,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 32.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (icon != null) Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(24.dp))
+            if (icon != null) Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(22.dp))
             Text(text, color = Color.Black, fontWeight = FontWeight.Bold)
         }
     }
@@ -198,7 +198,7 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
     ) { focused ->
         val tint = if (focused) Color.Black else Color.White
         Row(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

@@ -27,6 +27,7 @@ import fr.poptv.player.data.Season
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
@@ -342,6 +343,27 @@ fun DetailScreen(
             }
         }
 
+        if (!compact) {
+            DetailTv(
+                detail = detail,
+                metaParts = metaParts,
+                plot = plot,
+                poster = item.poster,
+                target = target,
+                seasonIndex = seasonIndex,
+                onSeason = { seasonIndex = it },
+                resumeFor = resumeFor,
+                watched = watched,
+                favorite = favorite,
+                onToggleFavorite = onToggleFavorite,
+                onPlayMovie = onPlayMovie,
+                onPlayEpisode = onPlayEpisode,
+                similar = similar,
+                onOpenSimilar = onOpenSimilar,
+                primaryFocus = focus,
+            )
+            return@Box
+        }
         val movieSimilar = !detail.isSeries && similar.isNotEmpty() && !compact
         Column(
             modifier = Modifier
@@ -651,6 +673,315 @@ private fun SimilarRow(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.po
                         }
                     }
                     Text(other.name, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+/** Fiche sur TV : à gauche l'affiche et les infos, à droite les épisodes ou les titres similaires en lignes. */
+@Composable
+private fun DetailTv(
+    detail: Detail,
+    metaParts: List<String>,
+    plot: String?,
+    poster: String?,
+    target: PlayTarget?,
+    seasonIndex: Int,
+    onSeason: (Int) -> Unit,
+    resumeFor: (String) -> ResumeEntry?,
+    watched: Set<String>,
+    favorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onPlayMovie: (fromStart: Boolean) -> Unit,
+    onPlayEpisode: (Episode, List<Episode>) -> Unit,
+    similar: List<fr.poptv.player.data.VodItem>,
+    onOpenSimilar: (fr.poptv.player.data.VodItem) -> Unit,
+    primaryFocus: FocusRequester,
+) {
+    val item = detail.item
+    val hasSimilar = similar.isNotEmpty()
+    val hasEpisodes = detail.isSeries
+    // 0 = épisodes, 1 = titres similaires (les films n'ont que les similaires).
+    var tab by remember(item.id) { mutableIntStateOf(if (hasEpisodes) 0 else 1) }
+    val showPanel = hasEpisodes || hasSimilar
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(start = 56.dp, end = 24.dp, top = 40.dp),
+            horizontalArrangement = Arrangement.spacedBy(30.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(190.dp)
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Surface1),
+            ) {
+                if (poster != null) {
+                    AsyncImage(
+                        model = rememberImage(poster, 400, 600),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    item.name,
+                    fontSize = 36.sp,
+                    lineHeight = 40.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-1).sp,
+                    color = TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (metaParts.isNotEmpty()) {
+                    Text(
+                        metaParts.joinToString("   ·   "),
+                        color = TextSecondary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (plot != null) {
+                    Text(
+                        plot,
+                        color = TextSecondary,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                        maxLines = 5,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                val listLabel = if (favorite) "Dans ma liste" else "Ma liste"
+                val listIcon = if (favorite) AppIcons.Check else Icons.Filled.Add
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (!detail.isSeries) {
+                        val resume = resumeFor("m:${item.id}")
+                        PrimaryButton(
+                            text = if (resume != null) "Reprendre à ${formatTime(resume.positionMs)}" else "Lecture",
+                            icon = Icons.Filled.PlayArrow,
+                            onClick = { onPlayMovie(false) },
+                            modifier = Modifier.focusRequester(primaryFocus),
+                        )
+                        if (resume != null) SecondaryButton("Depuis le début", onClick = { onPlayMovie(true) }, icon = Icons.Filled.Refresh)
+                    } else if (target != null) {
+                        PrimaryButton(
+                            text = target.label,
+                            icon = Icons.Filled.PlayArrow,
+                            onClick = { onPlayEpisode(target.episode, target.season.episodes) },
+                            modifier = Modifier.focusRequester(primaryFocus),
+                        )
+                    }
+                    SecondaryButton(listLabel, onClick = onToggleFavorite, icon = listIcon)
+                }
+            }
+        }
+
+        if (showPanel) {
+            Column(
+                modifier = Modifier
+                    .width(440.dp)
+                    .fillMaxHeight()
+                    .background(Brush.horizontalGradient(listOf(Color.Transparent, Color(0xCC05080D)), startX = 0f, endX = 90f))
+                    .padding(start = 36.dp, end = 40.dp, top = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                    if (hasEpisodes) PanelTab("Épisodes", tab == 0) { tab = 0 }
+                    if (hasSimilar) PanelTab("Titres similaires", tab == 1) { tab = 1 }
+                }
+                if (tab == 0 && hasEpisodes) {
+                    when {
+                        detail.loading -> SkeletonLines(count = 4)
+                        detail.error != null -> Text(detail.error, color = TextPrimary, fontWeight = FontWeight.Medium)
+                        else -> EpisodeList(detail, seasonIndex, onSeason, target, resumeFor, watched, onPlayEpisode)
+                    }
+                } else {
+                    SimilarList(similar, onOpenSimilar)
+                }
+            }
+        }
+    }
+}
+
+/** Titre d'onglet du panneau : il s'active dès qu'il prend le focus, trait bleu sous l'onglet actif. */
+@Composable
+private fun PanelTab(text: String, active: Boolean, onSelect: () -> Unit) {
+    FocusItem(
+        onClick = onSelect,
+        shape = RoundedCornerShape(8.dp),
+        focusScale = 1.03f,
+        idleColor = Color.Transparent,
+        focusedColor = Color(0x22FFFFFF),
+    ) { focused ->
+        LaunchedEffect(focused) { if (focused) onSelect() }
+        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+            Box(
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(if (active) Accent else Color.Transparent, RoundedCornerShape(2.dp)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EpisodeList(
+    detail: Detail,
+    seasonIndex: Int,
+    onSeason: (Int) -> Unit,
+    target: PlayTarget?,
+    resumeFor: (String) -> ResumeEntry?,
+    watched: Set<String>,
+    onPlayEpisode: (Episode, List<Episode>) -> Unit,
+) {
+    val season = detail.seasons.getOrNull(seasonIndex) ?: detail.seasons.first()
+    if (detail.seasons.size > 1) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            itemsIndexed(detail.seasons, key = { _, s -> s.number }) { index, s ->
+                Pill(seasonLabel(s), onClick = { onSeason(index) }, selected = index == seasonIndex)
+            }
+        }
+    }
+    val listState = rememberLazyListState()
+    LaunchedEffect(season.number) {
+        val index = season.episodes.indexOfFirst { it.id == target?.episode?.id }
+        listState.scrollToItem(index.coerceAtLeast(0))
+    }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items(season.episodes, key = { it.id }) { episode ->
+            val resume = resumeFor("e:${episode.id}")
+            val seen = "e:${episode.id}" in watched
+            FocusItem(
+                onClick = { onPlayEpisode(episode, season.episodes) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                focusScale = 1.02f,
+                focusRing = true,
+                idleColor = Color.Transparent,
+            ) {
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Box(
+                        modifier = Modifier.width(132.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(Surface1),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (episode.image != null) {
+                            AsyncImage(
+                                model = rememberImage(episode.image, 320, 180),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Text("${episode.number}", color = TextSecondary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (resume != null && resume.durationMs > 0 && !seen) {
+                            val fraction = (resume.positionMs.toFloat() / resume.durationMs).coerceIn(0f, 1f)
+                            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x66FFFFFF))) {
+                                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Accent))
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            "${episode.number}. ${episode.title}",
+                            color = TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val status = when {
+                            seen -> "Vu"
+                            resume != null -> "Reprendre à ${formatTime(resume.positionMs)}"
+                            else -> null
+                        }
+                        val meta = listOfNotNull(status, prettyDuration(episode.duration)).joinToString("  ·  ")
+                        if (meta.isNotEmpty()) {
+                            Text(
+                                meta,
+                                color = if (resume != null && !seen) Accent else TextSecondary,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    if (seen) Icon(AppIcons.Check, contentDescription = "Vu", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimilarList(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.poptv.player.data.VodItem) -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items(items, key = { it.id }) { other ->
+            FocusItem(
+                onClick = { onOpen(other) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                focusScale = 1.02f,
+                focusRing = true,
+                idleColor = Color.Transparent,
+            ) {
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Box(modifier = Modifier.width(60.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(7.dp))) {
+                        PosterPlaceholder(other.name, Modifier.fillMaxSize())
+                        if (other.poster != null) {
+                            AsyncImage(
+                                model = rememberImage(other.poster, 180, 270),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(other.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        other.year?.let { Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1) }
+                        cleanRating(other.rating)?.let { Text("★ $it", color = Color(0xFFFFD166), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+                    }
                 }
             }
         }
