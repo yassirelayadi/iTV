@@ -347,6 +347,7 @@ fun DetailScreen(
             DetailTv(
                 detail = detail,
                 metaParts = metaParts,
+                category = categoryName,
                 plot = plot,
                 poster = item.poster,
                 target = target,
@@ -685,6 +686,7 @@ private fun SimilarRow(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.po
 private fun DetailTv(
     detail: Detail,
     metaParts: List<String>,
+    category: String?,
     plot: String?,
     poster: String?,
     target: PlayTarget?,
@@ -732,6 +734,20 @@ private fun DetailTv(
                 }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (!category.isNullOrBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.width(24.dp).height(3.dp).background(Accent, RoundedCornerShape(2.dp)))
+                        Text(
+                            category.uppercase(),
+                            color = Color(0xCCFFFFFF),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.8.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 Text(
                     item.name,
                     fontSize = 36.sp,
@@ -742,9 +758,10 @@ private fun DetailTv(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (metaParts.isNotEmpty()) {
+                val metaShown = if (category != null && metaParts.firstOrNull() == category) metaParts.drop(1) else metaParts
+                if (metaShown.isNotEmpty()) {
                     Text(
-                        metaParts.joinToString("   ·   "),
+                        metaShown.joinToString("   ·   "),
                         color = TextSecondary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
@@ -829,7 +846,8 @@ private fun PanelTab(text: String, active: Boolean, onSelect: () -> Unit) {
         focusedColor = Color(0x22FFFFFF),
     ) { focused ->
         LaunchedEffect(focused) { if (focused) onSelect() }
-        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+        // IntrinsicSize.Max : le trait suit la largeur du texte au lieu de remplir tout le panneau.
+        Column(modifier = Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max).padding(horizontal = 6.dp, vertical = 4.dp)) {
             Text(
                 text,
                 color = if (active) TextPrimary else TextSecondary,
