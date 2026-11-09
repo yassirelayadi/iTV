@@ -341,14 +341,14 @@ fun MediaScreen(
             HeroText(
                 hero = hero,
                 overview = hero?.item?.id?.let { tmdbInfo[it]?.overview },
-                modifier = Modifier.weight(0.44f),
+                modifier = Modifier.weight(0.47f),
                 onOpen = onOpen,
                 onResume = onResume,
                 onFocusInfo = onFocusInfo,
             )
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(0.56f).fillMaxWidth(),
+                modifier = Modifier.weight(0.53f).fillMaxWidth(),
                 contentPadding = PaddingValues(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -454,7 +454,7 @@ private fun HeroText(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = ScreenPadding, end = ScreenPadding, bottom = if (compact) 8.dp else 22.dp)
+                .padding(start = ScreenPadding, end = ScreenPadding, top = if (compact) 0.dp else 24.dp, bottom = if (compact) 8.dp else 32.dp)
                 .fillMaxWidth(if (compact) 0.9f else 1f),
             verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 12.dp),
         ) {
