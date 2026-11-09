@@ -680,6 +680,7 @@ private fun SimilarRow(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.po
 }
 
 /** Fiche sur TV : à gauche l'affiche et les infos, à droite les épisodes ou les titres similaires en lignes. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailTv(
     detail: Detail,
