@@ -117,10 +117,49 @@ private fun appTypography(): Typography {
 /** Vrai sur un téléphone (écran étroit) : menu en bas, marges réduites, lecture tactile. */
 val LocalCompact = androidx.compose.runtime.compositionLocalOf { false }
 
+/** Taille de l'interface sur TV (réglage « Taille de l'interface ») : 0,8 compacte, 0,9 normale, 1,0 grande. */
+object UiScale {
+    private const val FILE = "itv_ui"
+    private const val KEY = "ui_scale"
+    val value = androidx.compose.runtime.mutableFloatStateOf(0.9f)
+    private var loaded = false
+
+    fun load(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        value.floatValue = context.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).getFloat(KEY, 0.9f)
+    }
+
+    fun set(context: android.content.Context, scale: Float) {
+        value.floatValue = scale
+        context.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).edit().putFloat(KEY, scale).apply()
+    }
+
+    fun label(scale: Float) = when {
+        scale < 0.85f -> "Compacte"
+        scale < 0.95f -> "Normale"
+        else -> "Grande"
+    }
+
+    fun next(scale: Float) = when {
+        scale < 0.85f -> 0.9f
+        scale < 0.95f -> 1.0f
+        else -> 0.8f
+    }
+}
+
 @Composable
 fun PopTheme(content: @Composable () -> Unit) {
     val compact = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp < 500
-    androidx.compose.runtime.CompositionLocalProvider(LocalCompact provides compact) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    UiScale.load(context)
+    val base = androidx.compose.ui.platform.LocalDensity.current
+    // Sur TV, tout (textes, boutons, images) suit ce facteur ; les téléphones gardent leur taille.
+    val scale = if (compact) 1f else UiScale.value.floatValue
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalCompact provides compact,
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density * scale, base.fontScale),
+    ) {
     MaterialTheme(
         typography = appTypography(),
         colorScheme = darkColorScheme(

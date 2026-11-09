@@ -802,7 +802,7 @@ private fun DetailTv(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                     if (hasEpisodes) PanelTab("Épisodes", tab == 0) { tab = 0 }
-                    if (hasSimilar) PanelTab("Titres similaires", tab == 1) { tab = 1 }
+                    if (hasSimilar) PanelTab("Similaires", tab == 1) { tab = 1 }
                 }
                 if (tab == 0 && hasEpisodes) {
                     when {

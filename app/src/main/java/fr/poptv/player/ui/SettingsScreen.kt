@@ -175,6 +175,15 @@ fun SettingsScreen(
                 },
             )
 
+            if (!fr.poptv.player.ui.LocalCompact.current) {
+                val scaleNow = UiScale.value.floatValue
+                SettingRow(
+                    title = "Taille de l'interface",
+                    subtitle = "${UiScale.label(scaleNow)} · ${(scaleNow * 100).toInt()} % · textes, boutons et images",
+                    onClick = { UiScale.set(settingsContext, UiScale.next(scaleNow)) },
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             SettingRow("Actualiser les catalogues", "Recharge les chaînes, films et séries", onRefresh)
             SettingRow("Changer de compte", "Saisir d'autres identifiants", onAccount)
