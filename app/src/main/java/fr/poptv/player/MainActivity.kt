@@ -47,6 +47,7 @@ import fr.poptv.player.ui.MediaScreen
 import fr.poptv.player.ui.PlayerScreen
 import fr.poptv.player.ui.PopTheme
 import fr.poptv.player.ui.SettingsScreen
+import fr.poptv.player.ui.ProfilesScreen
 import fr.poptv.player.ui.SplashScreen
 import fr.poptv.player.ui.VodPlayerScreen
 import kotlinx.coroutines.delay
@@ -100,8 +101,41 @@ private fun App(viewModel: AppViewModel) {
     val moviesList = rememberLazyListState()
     val seriesList = rememberLazyListState()
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var pendingExport by remember { mutableStateOf<String?>(null) }
+    // Sans explorateur de fichiers (fréquent sur TV), la sauvegarde passe par le dossier de l'appli.
+    fun fallbackFile() = java.io.File(context.getExternalFilesDir(null) ?: context.filesDir, "iTV-sauvegarde.json")
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        val raw = pendingExport
+        pendingExport = null
+        if (uri != null && raw != null) {
+            val ok = runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(raw.toByteArray()) } }.isSuccess
+            viewModel.setBackupMessage(if (ok) "Sauvegarde enregistrée" else "Échec de l'enregistrement")
+        }
+    }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val raw = runCatching { context.contentResolver.openInputStream(uri)?.use { String(it.readBytes()) } }.getOrNull()
+            if (raw != null) viewModel.importBackup(raw) else viewModel.setBackupMessage("Fichier illisible")
+        }
+    }
+
     GlideScrolling {
     when (val screen = state.screen) {
+        Screen.Profiles -> ProfilesScreen(
+            profiles = state.profiles,
+            activeId = state.activeProfile,
+            canClose = state.allChannels.isNotEmpty() || state.settingsOpen,
+            onSelect = viewModel::selectProfile,
+            onAdd = viewModel::addProfile,
+            onDelete = viewModel::deleteProfile,
+            onClose = viewModel::closeProfiles,
+        )
+
         is Screen.VodPlayer -> key(screen.key) {
             VodPlayerScreen(
                 playback = vodPlaying!!,
@@ -166,6 +200,25 @@ private fun App(viewModel: AppViewModel) {
             onAccount = viewModel::showLogin,
             onTmdb = viewModel::openTmdb,
             onLogout = viewModel::logout,
+            onProfiles = viewModel::openProfiles,
+            onExport = { withAccount ->
+                viewModel.exportBackup(withAccount) { raw ->
+                    pendingExport = raw
+                    val launched = runCatching { exportLauncher.launch("iTV-sauvegarde.json") }.isSuccess
+                    if (!launched) {
+                        pendingExport = null
+                        val ok = runCatching { fallbackFile().writeText(raw) }.isSuccess
+                        viewModel.setBackupMessage(if (ok) "Enregistrée dans ${fallbackFile().path}" else "Échec de l'enregistrement")
+                    }
+                }
+            },
+            onImport = {
+                val launched = runCatching { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }.isSuccess
+                if (!launched) {
+                    val f = fallbackFile()
+                    if (f.exists()) viewModel.importBackup(f.readText()) else viewModel.setBackupMessage("Aucun fichier trouvé : ${f.path}")
+                }
+            },
             onBack = viewModel::closeSettings,
         )
 

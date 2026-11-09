@@ -10,6 +10,7 @@ sealed interface Screen {
     data class VodPlayer(val key: String) : Screen
     data object LivePlayer : Screen
     data object Login : Screen
+    data object Profiles : Screen
     data object Loading : Screen
     data object TmdbKey : Screen
     data class Categories(val section: Section) : Screen
@@ -25,6 +26,7 @@ val UiState.screen: Screen
         vodPlaying != null -> Screen.VodPlayer(vodPlaying.key)
         playing != null -> Screen.LivePlayer
         needsLogin -> Screen.Login
+        profilePickerOpen -> Screen.Profiles
         loading && allChannels.isEmpty() -> Screen.Loading
         tmdbOpen -> Screen.TmdbKey
         manageSection != null -> Screen.Categories(manageSection)

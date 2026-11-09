@@ -119,6 +119,11 @@ data class UiState(
     // « Pour vous » : suggestions selon la liste et l'historique
     val forYouMovies: List<VodItem> = emptyList(),
     val forYouSeries: List<VodItem> = emptyList(),
+    // Profils et sauvegarde
+    val profiles: List<fr.poptv.player.data.Profile> = emptyList(),
+    val activeProfile: String = fr.poptv.player.data.DEFAULT_PROFILE,
+    val profilePickerOpen: Boolean = false,
+    val backupMessage: String? = null,
 )
 
 private fun VodCatalog.without(hidden: Set<String>): VodCatalog =
@@ -199,6 +204,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _state.map { if (it.manageSection != null) null else it.series to it.hiddenSeries }.distinctUntilChanged { a, b -> a?.first === b?.first }.collect { it?.let { (c, h) -> runCatching { precomputeShelves(c, h, false) } } }
         }
         viewModelScope.launch {
+            store.profiles.collect { list -> _state.update { it.copy(profiles = list) } }
+        }
+        viewModelScope.launch {
+            store.activeProfile.collect { id -> _state.update { it.copy(activeProfile = id) } }
+        }
+        viewModelScope.launch {
             store.favorites.collect { favs -> _state.update { it.copy(favorites = favs) } }
         }
         viewModelScope.launch {
@@ -223,6 +234,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     hiddenSeries = hidden[Section.SERIES].orEmpty(),
                 )
             }
+            // Plusieurs profils : on demande qui regarde avant d'afficher quoi que ce soit.
+            if (store.profiles.first().size > 1) _state.update { it.copy(profilePickerOpen = true) }
             val creds = store.credentials.first()
             if (creds == null) {
                 _state.update { it.copy(loading = false, needsLogin = true) }
@@ -435,6 +448,72 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 AccountInfo(username = creds.username)
             }
             _state.update { it.copy(account = info, accountLoading = false) }
+        }
+    }
+
+    // ---- Profils ----
+
+    fun openProfiles() = _state.update { it.copy(profilePickerOpen = true) }
+
+    fun closeProfiles() = _state.update { it.copy(profilePickerOpen = false) }
+
+    fun selectProfile(id: String) {
+        viewModelScope.launch {
+            store.setActiveProfile(id)
+            // Les suggestions « Pour vous » sont propres au profil : on repart de celles qu'il avait en cache.
+            val cached = runCatching { store.loadForYou() }.getOrNull()
+            _state.update {
+                it.copy(
+                    profilePickerOpen = false,
+                    settingsOpen = false,
+                    selectedCategory = CAT_ALL,
+                    forYouMovies = cached?.movies.orEmpty(),
+                    forYouSeries = cached?.series.orEmpty(),
+                )
+            }
+        }
+    }
+
+    fun addProfile(name: String) {
+        viewModelScope.launch { selectProfile(store.addProfile(name).id) }
+    }
+
+    fun deleteProfile(id: String) {
+        viewModelScope.launch { store.deleteProfile(id) }
+    }
+
+    // ---- Sauvegarde et restauration ----
+
+    fun setBackupMessage(message: String?) = _state.update { it.copy(backupMessage = message) }
+
+    fun exportBackup(includeAccount: Boolean, onReady: (String) -> Unit) {
+        viewModelScope.launch {
+            val raw = store.exportBackup(includeAccount, fr.poptv.player.ui.PreviewPref.enabled(getApplication()))
+            onReady(raw)
+        }
+    }
+
+    fun importBackup(raw: String) {
+        viewModelScope.launch {
+            val backup = store.importBackup(raw)
+            if (backup == null) {
+                setBackupMessage("Ce fichier n'est pas une sauvegarde iTV")
+                return@launch
+            }
+            fr.poptv.player.ui.PreviewPref.set(getApplication(), backup.channelPreview)
+            val hidden = store.loadHidden()
+            val cached = runCatching { store.loadForYou() }.getOrNull()
+            _state.update {
+                it.copy(
+                    hiddenLive = hidden[Section.LIVE].orEmpty(),
+                    hiddenMovies = hidden[Section.MOVIES].orEmpty(),
+                    hiddenSeries = hidden[Section.SERIES].orEmpty(),
+                    forYouMovies = cached?.movies.orEmpty(),
+                    forYouSeries = cached?.series.orEmpty(),
+                    backupMessage = "Sauvegarde restaurée" + if (backup.credentials != null) " (compte inclus)" else "",
+                )
+            }
+            backup.credentials?.let { load(it, firstLogin = false) }
         }
     }
 

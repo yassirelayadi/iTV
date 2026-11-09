@@ -47,6 +47,9 @@ fun SettingsScreen(
     onAccount: () -> Unit,
     onTmdb: () -> Unit,
     onLogout: () -> Unit,
+    onProfiles: () -> Unit,
+    onExport: (includeAccount: Boolean) -> Unit,
+    onImport: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -71,6 +74,11 @@ fun SettingsScreen(
 
             ProfileCard(state.account, state.accountLoading)
 
+            SettingRow(
+                title = "Profil : " + (state.profiles.firstOrNull { it.id == state.activeProfile }?.name ?: "Principal"),
+                subtitle = "Changer de profil ou en créer un · favoris et historique séparés",
+                onClick = onProfiles,
+            )
             SettingRow(
                 title = "Catégories des chaînes",
                 subtitle = summary(state.allCategories.size, state.hiddenLive.size),
@@ -120,6 +128,19 @@ fun SettingsScreen(
                     PreviewPref.set(settingsContext, previewOn)
                 },
             )
+
+            var withAccount by remember { androidx.compose.runtime.mutableStateOf(false) }
+            SettingRow(
+                title = "Exporter la sauvegarde",
+                subtitle = state.backupMessage ?: "Profils, favoris, historique, catégories masquées",
+                onClick = { onExport(withAccount) },
+            )
+            SettingRow(
+                title = "Inclure le compte dans la sauvegarde",
+                subtitle = if (withAccount) "Oui · le fichier contiendra tes identifiants en clair : garde-le privé" else "Non · identifiants exclus (recommandé)",
+                onClick = { withAccount = !withAccount },
+            )
+            SettingRow("Restaurer une sauvegarde", "Remplace les profils et favoris actuels par ceux d'un fichier", onImport)
 
             Spacer(Modifier.height(8.dp))
             SettingRow("Actualiser les catalogues", "Recharge les chaînes, films et séries", onRefresh)
