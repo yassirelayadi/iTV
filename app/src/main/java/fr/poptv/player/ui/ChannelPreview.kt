@@ -75,8 +75,13 @@ fun ChannelPreview(streamUrl: String, modifier: Modifier = Modifier) {
             override fun onRenderedFirstFrame() {
                 ready = true
             }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) ready = true
+            }
         }
         player.addListener(listener)
+        if (player.playbackState == Player.STATE_READY) ready = true
         onDispose {
             player.removeListener(listener)
             player.release()

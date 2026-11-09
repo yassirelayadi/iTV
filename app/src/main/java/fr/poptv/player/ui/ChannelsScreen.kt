@@ -311,14 +311,15 @@ private fun ChannelListWithPreview(
 ) {
     val context = LocalContext.current
     val previewEnabled = remember { PreviewPref.enabled(context) }
+    // focusedId : chaîne actuellement sélectionnée (null si le focus est hors de la liste) ; shownId : la dernière, gardée à l'écran.
     var focusedId by remember { mutableStateOf<String?>(null) }
-    var listFocused by remember { mutableStateOf(false) }
-    val shown = channels.firstOrNull { it.id == focusedId } ?: channels.first()
+    var shownId by remember { mutableStateOf<String?>(null) }
+    val shown = channels.firstOrNull { it.id == shownId } ?: channels.first()
 
     Row(modifier = Modifier.fillMaxSize().padding(end = ScreenPadding)) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(0.56f).fillMaxHeight().onFocusChanged { listFocused = it.hasFocus },
+            modifier = Modifier.weight(0.56f).fillMaxHeight(),
             contentPadding = PaddingValues(start = ScreenPadding, top = 6.dp, bottom = 14.dp, end = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -328,7 +329,14 @@ private fun ChannelListWithPreview(
                     info = epg[channel.id],
                     onNeedEpg = onNeedEpg,
                     favorite = channel.id in favorites,
-                    onFocused = { focusedId = channel.id },
+                    onFocusChange = { focused ->
+                        if (focused) {
+                            focusedId = channel.id
+                            shownId = channel.id
+                        } else if (focusedId == channel.id) {
+                            focusedId = null
+                        }
+                    },
                     onClick = { onPlay(channel) },
                     onLongClick = { onToggleFavorite(channel.id) },
                 )
@@ -338,7 +346,7 @@ private fun ChannelListWithPreview(
         ChannelPreviewPanel(
             channel = shown,
             info = epg[shown.id],
-            previewOn = previewEnabled && listFocused,
+            previewOn = previewEnabled && focusedId != null,
             modifier = Modifier.weight(0.44f).fillMaxHeight().padding(top = 8.dp),
         )
     }
@@ -351,7 +359,7 @@ private fun ChannelRow(
     info: EpgInfo?,
     onNeedEpg: (String) -> Unit,
     favorite: Boolean,
-    onFocused: () -> Unit,
+    onFocusChange: (Boolean) -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -369,7 +377,7 @@ private fun ChannelRow(
         focusRing = true,
         idleColor = Color.Transparent,
     ) { focused ->
-        LaunchedEffect(focused) { if (focused) onFocused() }
+        LaunchedEffect(focused) { onFocusChange(focused) }
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
