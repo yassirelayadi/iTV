@@ -486,18 +486,6 @@ private fun HeroText(
             if (hero.meta.isNotEmpty()) {
                 Text(hero.meta, color = Color(0xE6EDF1F7), fontSize = if (compact) 13.sp else 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            val plot = (overview ?: hero.plot)?.trim().orEmpty()
-            if (!compact && plot.isNotEmpty()) {
-                Text(
-                    plot,
-                    color = Color(0xE6EDF0F5),
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    // Titre sur deux lignes : une seule ligne de résumé, pour que le bloc tienne dans le bandeau.
-                    maxLines = if (longTitle) 1 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
             val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
             val restoreTick = FocusMemory.tick.intValue
             LaunchedEffect(restoreTick) {

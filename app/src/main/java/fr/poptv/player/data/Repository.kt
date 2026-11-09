@@ -35,7 +35,7 @@ class Repository(private val context: Context) {
     private fun fetchM3u(rawUrl: String): Playlist {
         var url = rawUrl.trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) url = "http://$url"
-        val request = Request.Builder().url(url).header("User-Agent", "iTV/0.1").build()
+        val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept", "*/*").build()
         return Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("Le serveur a répondu HTTP ${response.code}")
             val source = response.body?.source() ?: error("Réponse vide du serveur")
@@ -96,30 +96,42 @@ class Repository(private val context: Context) {
             val movies = section == Section.MOVIES
             val categories = if (movies) XtreamClient.movieCategories(creds) else XtreamClient.seriesCategories(creds)
             val visible = categories.filter { it.id !in hidden }
-            val gen = CatalogDb.beginLoad(section)
-            val writer = CatalogDb.writer(section, gen)
-            try {
-                fun load(categoryId: String?, skip: Set<String>) {
-                    if (movies) XtreamClient.fetchMovies(creds, categoryId, skip, writer::add)
-                    else XtreamClient.fetchSeries(creds, categoryId, skip, writer::add)
-                }
-                if (hidden.isEmpty() || visible.size > PER_CATEGORY_LIMIT) {
-                    load(null, hidden)
-                } else {
-                    val gate = Semaphore(4)
-                    coroutineScope {
-                        visible.map { category ->
-                            async { gate.withPermit { load(category.id, emptySet()) } }
-                        }.awaitAll()
+            // Certains serveurs coupent la connexion (« connection reset ») sur le gros téléchargement
+            // d'un seul bloc : on retente alors catégorie par catégorie, en douceur.
+            var failure: Throwable? = null
+            val modes = listOf(0, 2, 1) // 0 = un seul bloc, sinon nombre de requêtes en parallèle par catégorie
+            for ((attempt, mode) in modes.withIndex()) {
+                val gen = CatalogDb.beginLoad(section)
+                val writer = CatalogDb.writer(section, gen)
+                try {
+                    fun load(categoryId: String?, skip: Set<String>) {
+                        if (movies) XtreamClient.fetchMovies(creds, categoryId, skip, writer::add)
+                        else XtreamClient.fetchSeries(creds, categoryId, skip, writer::add)
                     }
+                    val perCategory = mode > 0 || (hidden.isNotEmpty() && visible.size <= PER_CATEGORY_LIMIT)
+                    if (!perCategory) {
+                        load(null, hidden)
+                    } else {
+                        val gate = Semaphore(if (mode > 0) mode else 4)
+                        coroutineScope {
+                            visible.map { category ->
+                                async { gate.withPermit { load(category.id, emptySet()) } }
+                            }.awaitAll()
+                        }
+                    }
+                    writer.close()
+                    CatalogDb.commit(section, gen, categories, categories.map { it.id }.filter { it in hidden })
+                    failure = null
+                    break
+                } catch (e: Throwable) {
+                    runCatching { writer.close() }
+                    CatalogDb.abort(section, gen)
+                    if (e is kotlinx.coroutines.CancellationException || e !is java.io.IOException || attempt == modes.lastIndex) throw e
+                    failure = e
+                    kotlinx.coroutines.delay(1_500)
                 }
-                writer.close()
-                CatalogDb.commit(section, gen, categories, categories.map { it.id }.filter { it in hidden })
-            } catch (e: Throwable) {
-                runCatching { writer.close() }
-                CatalogDb.abort(section, gen)
-                throw e
             }
+            failure?.let { throw it }
             CatalogDb.meta(section)
         }
 

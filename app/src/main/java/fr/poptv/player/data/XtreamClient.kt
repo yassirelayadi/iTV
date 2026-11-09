@@ -21,6 +21,9 @@ object Http {
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .followRedirects(true)
+        // Pas de connexion gardée en réserve : un serveur qui la coupe entre deux requêtes provoquerait un « connection reset ».
+        .connectionPool(okhttp3.ConnectionPool(0, 1, TimeUnit.SECONDS))
+        .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
         .followSslRedirects(false) // pas de retour de https vers http
         .build()
 }
@@ -31,6 +34,9 @@ internal fun JsonObject.str(key: String): String? =
 /** Texte nettoyé : null si absent ou vide. */
 internal fun JsonObject.text(key: String): String? =
     str(key)?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
+
+/** Identité courante des lecteurs IPTV : certains serveurs ferment la connexion aux clients inconnus. */
+internal const val UA = "VLC/3.0.20 LibVLC/3.0.20"
 
 object XtreamClient {
     private val json = Json { ignoreUnknownKeys = true }
@@ -49,7 +55,7 @@ object XtreamClient {
             .apply { if (action != null) addQueryParameter("action", action) }
             .apply { params.forEach { (key, value) -> addQueryParameter(key, value) } }
             .build()
-        val request = Request.Builder().url(url).header("User-Agent", "iTV/0.1").build()
+        val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept", "*/*").build()
         return Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("Le serveur a répondu HTTP ${response.code}")
             response.body?.string() ?: error("Réponse vide du serveur")
@@ -75,7 +81,7 @@ object XtreamClient {
             .addQueryParameter("action", action)
             .apply { params.forEach { (key, value) -> addQueryParameter(key, value) } }
             .build()
-        val request = Request.Builder().url(url).header("User-Agent", "iTV/0.1").build()
+        val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept", "*/*").build()
         return Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("Le serveur a répondu HTTP ${response.code}")
             val body = response.body ?: error("Réponse vide du serveur")
