@@ -72,7 +72,7 @@ fun ProfilesScreen(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
             Text(
-                if (creating) "Nouveau profil" else if (managing) "Gérer les profils" else "Qui regarde ?",
+                if (creating) "Nouveau profil" else if (managing) "Gérer les profils" else "Sélectionnez un profil",
                 fontSize = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = TextPrimary,
