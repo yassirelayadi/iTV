@@ -456,7 +456,7 @@ private fun HeroText(
                 .align(Alignment.BottomStart)
                 .padding(start = ScreenPadding, end = ScreenPadding, bottom = 8.dp)
                 .fillMaxWidth(if (compact) 0.9f else 0.52f),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else if (hero.title.length > 22) 6.dp else 8.dp),
         ) {
             if (!hero.tag.isNullOrBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -476,8 +476,8 @@ private fun HeroText(
             Text(
                 hero.title,
                 color = TextPrimary,
-                fontSize = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 34.sp else 44.sp),
-                lineHeight = if (compact) 26.sp else (if (longTitle) 38.sp else 48.sp),
+                fontSize = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 28.sp else 44.sp),
+                lineHeight = if (compact) 26.sp else (if (longTitle) 32.sp else 48.sp),
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.5).sp,
                 maxLines = if (compact) 1 else 2,
@@ -493,7 +493,8 @@ private fun HeroText(
                     color = Color(0xE6EDF0F5),
                     fontSize = 15.sp,
                     lineHeight = 21.sp,
-                    maxLines = 2,
+                    // Titre sur deux lignes : une seule ligne de résumé, pour que le bloc tienne dans le bandeau.
+                    maxLines = if (longTitle) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
