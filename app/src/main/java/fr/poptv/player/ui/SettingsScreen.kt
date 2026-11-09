@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -141,6 +142,38 @@ fun SettingsScreen(
                 onClick = { withAccount = !withAccount },
             )
             SettingRow("Restaurer une sauvegarde", "Remplace les profils et favoris actuels par ceux d'un fichier", onImport)
+
+            var updateText by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+            var updateBusy by remember { androidx.compose.runtime.mutableStateOf(false) }
+            val updateScope = androidx.compose.runtime.rememberCoroutineScope()
+            SettingRow(
+                title = "Mettre à jour l'application",
+                subtitle = updateText ?: "Version installée : ${fr.poptv.player.data.Updater.installedCode(settingsContext)} · vérifie et installe la dernière",
+                onClick = {
+                    if (!updateBusy) {
+                        updateBusy = true
+                        updateScope.launch {
+                            updateText = "Recherche d'une mise à jour…"
+                            when (val c = fr.poptv.player.data.Updater.check(settingsContext)) {
+                                is fr.poptv.player.data.Updater.Check.Failed -> updateText = c.reason
+                                fr.poptv.player.data.Updater.Check.UpToDate -> updateText = "iTV est à jour"
+                                fr.poptv.player.data.Updater.Check.Available -> {
+                                    updateText = "Téléchargement… 0 %"
+                                    val apk = fr.poptv.player.data.Updater.download(settingsContext) { updateText = "Téléchargement… $it %" }
+                                    updateText = if (apk == null) {
+                                        "Échec du téléchargement"
+                                    } else if (fr.poptv.player.data.Updater.install(settingsContext, apk)) {
+                                        "Confirme l'installation à l'écran"
+                                    } else {
+                                        "Autorise iTV à installer des applications, puis relance"
+                                    }
+                                }
+                            }
+                            updateBusy = false
+                        }
+                    }
+                },
+            )
 
             Spacer(Modifier.height(8.dp))
             SettingRow("Actualiser les catalogues", "Recharge les chaînes, films et séries", onRefresh)

@@ -53,6 +53,8 @@ jobs:
             echo "ITV_KEY_ALIAS=$KEY_ALIAS"
             echo "ITV_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
+          # Numéro de version croissant : Android n'accepte une mise à jour que si ce numéro augmente.
+          echo "ITV_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
       # Tests automatiques : un test qui échoue arrête la compilation, aucun APK n'est publié.
       - name: Lancer les tests
@@ -71,7 +73,9 @@ jobs:
         run: gradle assembleRelease --no-daemon
 
       - name: Renommer l'APK
-        run: cp app/build/outputs/apk/release/app-release.apk iTV.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk iTV.apk
+          echo "{\"code\":$ITV_VERSION_CODE}" > version.json
 
       - name: Conserver l'APK (onglet Actions)
         uses: actions/upload-artifact@v4
@@ -86,4 +90,4 @@ jobs:
         run: |
           gh release view derniere-version >/dev/null 2>&1 || \
             gh release create derniere-version --title "Dernière version" --notes "APK compilé automatiquement."
-          gh release upload derniere-version iTV.apk --clobber
+          gh release upload derniere-version iTV.apk version.json --clobber

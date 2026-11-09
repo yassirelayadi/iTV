@@ -13,7 +13,7 @@ android {
         applicationId = "fr.poptv.player"
         minSdk = 23
         targetSdk = 34
-        versionCode = 1
+        versionCode = (System.getenv("ITV_VERSION_CODE") ?: "1").toIntOrNull() ?: 1
         versionName = "0.1.0"
 
         // Clé TMDB par défaut : fournie par la compilation GitHub (secret TMDB_KEY), jamais écrite dans le code.
