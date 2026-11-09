@@ -61,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -708,6 +709,9 @@ private fun DetailTv(
     // 0 = épisodes, 1 = titres similaires (les films n'ont que les similaires).
     var tab by remember(item.id) { mutableIntStateOf(if (hasEpisodes) 0 else 1) }
     val showPanel = hasEpisodes || hasSimilar
+    // Un requester par onglet : depuis les saisons, les épisodes ou les similaires, Haut remonte à l'onglet actif.
+    val tabFocus = remember { List(2) { FocusRequester() } }
+    val activeTab = tabFocus[tab]
 
     Row(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -818,17 +822,17 @@ private fun DetailTv(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                    if (hasEpisodes) PanelTab("Épisodes", tab == 0) { tab = 0 }
-                    if (hasSimilar) PanelTab("Similaires", tab == 1) { tab = 1 }
+                    if (hasEpisodes) PanelTab("Épisodes", tab == 0, tabFocus[0]) { tab = 0 }
+                    if (hasSimilar) PanelTab("Titres similaires", tab == 1, tabFocus[1]) { tab = 1 }
                 }
                 if (tab == 0 && hasEpisodes) {
                     when {
                         detail.loading -> SkeletonLines(count = 4)
                         detail.error != null -> Text(detail.error, color = TextPrimary, fontWeight = FontWeight.Medium)
-                        else -> EpisodeList(detail, seasonIndex, onSeason, target, resumeFor, watched, onPlayEpisode)
+                        else -> EpisodeList(detail, seasonIndex, onSeason, target, resumeFor, watched, onPlayEpisode, activeTab)
                     }
                 } else {
-                    SimilarList(similar, onOpenSimilar)
+                    SimilarList(similar, onOpenSimilar, activeTab)
                 }
             }
         }
@@ -837,13 +841,14 @@ private fun DetailTv(
 
 /** Titre d'onglet du panneau : il s'active dès qu'il prend le focus, trait bleu sous l'onglet actif. */
 @Composable
-private fun PanelTab(text: String, active: Boolean, onSelect: () -> Unit) {
+private fun PanelTab(text: String, active: Boolean, focusRequester: FocusRequester, onSelect: () -> Unit) {
     FocusItem(
         onClick = onSelect,
+        modifier = Modifier.focusRequester(focusRequester),
         shape = RoundedCornerShape(8.dp),
         focusScale = 1.03f,
         idleColor = Color.Transparent,
-        focusedColor = Color(0x22FFFFFF),
+        focusedColor = Color.Transparent,
     ) { focused ->
         LaunchedEffect(focused) { if (focused) onSelect() }
         // IntrinsicSize.Max : le trait suit la largeur du texte au lieu de remplir tout le panneau.
@@ -875,12 +880,25 @@ private fun EpisodeList(
     resumeFor: (String) -> ResumeEntry?,
     watched: Set<String>,
     onPlayEpisode: (Episode, List<Episode>) -> Unit,
+    activeTab: FocusRequester,
 ) {
     val season = detail.seasons.getOrNull(seasonIndex) ?: detail.seasons.first()
-    if (detail.seasons.size > 1) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    val hasChips = detail.seasons.size > 1
+    // Haut depuis les saisons remonte à l'onglet ; Haut depuis le premier épisode retombe sur la saison choisie.
+    val chipFocus = remember { FocusRequester() }
+    if (hasChips) {
+        androidx.compose.foundation.lazy.LazyRow(
+            state = rememberLazyListState(initialFirstVisibleItemIndex = seasonIndex),
+            modifier = Modifier.focusProperties { up = activeTab },
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             itemsIndexed(detail.seasons, key = { _, s -> s.number }) { index, s ->
-                Pill(seasonLabel(s), onClick = { onSeason(index) }, selected = index == seasonIndex)
+                Pill(
+                    seasonLabel(s),
+                    onClick = { onSeason(index) },
+                    selected = index == seasonIndex,
+                    modifier = if (index == seasonIndex) Modifier.focusRequester(chipFocus) else Modifier,
+                )
             }
         }
     }
@@ -895,12 +913,14 @@ private fun EpisodeList(
         contentPadding = PaddingValues(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        items(season.episodes, key = { it.id }) { episode ->
+        itemsIndexed(season.episodes, key = { _, e -> e.id }) { position, episode ->
             val resume = resumeFor("e:${episode.id}")
             val seen = "e:${episode.id}" in watched
             FocusItem(
                 onClick = { onPlayEpisode(episode, season.episodes) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().then(
+                    if (position == 0) Modifier.focusProperties { up = if (hasChips) chipFocus else activeTab } else Modifier,
+                ),
                 shape = RoundedCornerShape(12.dp),
                 focusScale = 1.02f,
                 focusRing = true,
@@ -965,16 +985,18 @@ private fun EpisodeList(
 }
 
 @Composable
-private fun SimilarList(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.poptv.player.data.VodItem) -> Unit) {
+private fun SimilarList(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.poptv.player.data.VodItem) -> Unit, activeTab: FocusRequester) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        items(items, key = { it.id }) { other ->
+        itemsIndexed(items, key = { _, o -> o.id }) { position, other ->
             FocusItem(
                 onClick = { onOpen(other) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().then(
+                    if (position == 0) Modifier.focusProperties { up = activeTab } else Modifier,
+                ),
                 shape = RoundedCornerShape(12.dp),
                 focusScale = 1.02f,
                 focusRing = true,
