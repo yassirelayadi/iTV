@@ -136,7 +136,7 @@ fun ChannelsScreen(
                 )
             }
         } else if (!LocalCompact.current) {
-            ChannelCardGrid(
+            ChannelListWithPreview(
                 channels = gridChannels,
                 epg = epg,
                 onNeedEpg = onNeedEpg,
@@ -292,11 +292,15 @@ private fun ChannelTile(
     }
 }
 
-private const val CARD_COLUMNS = 4
+/** Couleur d'une chaîne : stable, tirée de son nom (les logos n'ont pas de couleur de marque). */
+private fun channelColor(name: String): Color {
+    val hue = (kotlin.math.abs(name.lowercase().hashCode()) % 360).toFloat()
+    return Color.hsv(hue, 0.55f, 0.42f)
+}
 
-/** Grille de cartes : lignes de 4, la carte qui a le focus s'élargit et lance l'aperçu en direct. */
+/** Liste des chaînes à gauche ; à droite, l'aperçu en direct et le programme de la chaîne sélectionnée. */
 @Composable
-private fun ChannelCardGrid(
+private fun ChannelListWithPreview(
     channels: List<Channel>,
     epg: Map<String, EpgInfo>,
     onNeedEpg: (String) -> Unit,
@@ -305,121 +309,74 @@ private fun ChannelCardGrid(
     onToggleFavorite: (String) -> Unit,
     listState: LazyListState,
 ) {
-    val rows = remember(channels) { channels.chunked(CARD_COLUMNS) }
     val context = LocalContext.current
-    val preview = remember { PreviewPref.enabled(context) }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        items(rows, key = { it.first().id }) { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenPadding),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                row.forEach { channel ->
-                    ChannelCardSlot(
-                        channel = channel,
-                        info = epg[channel.id],
-                        onNeedEpg = onNeedEpg,
-                        favorite = channel.id in favorites,
-                        preview = preview,
-                        onClick = { onPlay(channel) },
-                        onLongClick = { onToggleFavorite(channel.id) },
-                    )
-                }
-                repeat(CARD_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+    val previewEnabled = remember { PreviewPref.enabled(context) }
+    var focusedId by remember { mutableStateOf<String?>(null) }
+    var listFocused by remember { mutableStateOf(false) }
+    val shown = channels.firstOrNull { it.id == focusedId } ?: channels.first()
+
+    Row(modifier = Modifier.fillMaxSize().padding(end = ScreenPadding)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(0.56f).fillMaxHeight().onFocusChanged { listFocused = it.hasFocus },
+            contentPadding = PaddingValues(start = ScreenPadding, top = 6.dp, bottom = 14.dp, end = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(channels, key = { it.id }) { channel ->
+                ChannelRow(
+                    channel = channel,
+                    info = epg[channel.id],
+                    onNeedEpg = onNeedEpg,
+                    favorite = channel.id in favorites,
+                    onFocused = { focusedId = channel.id },
+                    onClick = { onPlay(channel) },
+                    onLongClick = { onToggleFavorite(channel.id) },
+                )
             }
         }
+        Spacer(Modifier.width(24.dp))
+        ChannelPreviewPanel(
+            channel = shown,
+            info = epg[shown.id],
+            previewOn = previewEnabled && listFocused,
+            modifier = Modifier.weight(0.44f).fillMaxHeight().padding(top = 8.dp),
+        )
     }
 }
 
-/** Couleur d'une chaîne : stable, tirée de son nom (les logos n'ont pas de couleur de marque). */
-private fun channelColor(name: String): Color {
-    val hue = (kotlin.math.abs(name.lowercase().hashCode()) % 360).toFloat()
-    return Color.hsv(hue, 0.55f, 0.42f)
-}
-
+/** Une ligne : logo, programme en cours, chaîne et horaires, progression. */
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.ChannelCardSlot(
+private fun ChannelRow(
     channel: Channel,
     info: EpgInfo?,
     onNeedEpg: (String) -> Unit,
     favorite: Boolean,
-    preview: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val grow by androidx.compose.animation.core.animateFloatAsState(
-        if (focused) 1.55f else 1f,
-        androidx.compose.animation.core.tween(Dur.Normal, easing = AppleEase),
-        label = "cardGrow",
-    )
-    Box(modifier = Modifier.weight(grow).onFocusChanged { focused = it.hasFocus }) {
-        ChannelCard(channel, info, onNeedEpg, favorite, preview, onClick, onLongClick)
-    }
-}
-
-/** Carte d'une chaîne : logo, programme en cours avec progression ; l'aperçu vidéo démarre après 1 s de focus. */
-@Composable
-private fun ChannelCard(
-    channel: Channel,
-    info: EpgInfo?,
-    onNeedEpg: (String) -> Unit,
-    favorite: Boolean,
-    preview: Boolean,
+    onFocused: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
     LaunchedEffect(channel.id) { onNeedEpg(channel.id) }
     val nowSec = System.currentTimeMillis() / 1000
     val program = info?.now(nowSec)
-    val shape = RoundedCornerShape(14.dp)
     val color = remember(channel.name) { channelColor(channel.name) }
 
     FocusItem(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = Modifier.fillMaxWidth().height(118.dp),
-        shape = shape,
-        focusScale = 1.03f,
+        modifier = Modifier.fillMaxWidth().height(74.dp),
+        shape = RoundedCornerShape(14.dp),
+        focusScale = 1.02f,
         focusRing = true,
         idleColor = Color.Transparent,
-        focusedColor = Color.Transparent,
     ) { focused ->
-        // Aperçu : un seul à la fois (celui de la carte au focus), démarré après une courte pause.
-        var previewOn by androidx.compose.runtime.remember { mutableStateOf(false) }
-        LaunchedEffect(focused, preview) {
-            if (focused && preview) {
-                delay(1_000)
-                previewOn = true
-            } else {
-                previewOn = false
-            }
-        }
-
-        Box(
-            modifier = Modifier.fillMaxSize().background(Brush.linearGradient(listOf(color, Color(0xFF0B0E14)))),
-        )
-        if (previewOn) {
-            ChannelPreview(channel.streamUrl, Modifier.fillMaxSize())
-        }
-        // Voile en bas pour la lisibilité du texte, y compris sur la vidéo.
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xCC000000)),
-            ),
-        )
+        LaunchedEffect(focused) { if (focused) onFocused() }
         Row(
-            modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(
-                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(Color(0x59000000)),
+                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)).background(color),
                 contentAlignment = Alignment.Center,
             ) {
                 if (channel.logo != null) {
@@ -427,41 +384,114 @@ private fun ChannelCard(
                         model = rememberImage(channel.logo, 128, 128),
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize().padding(4.dp),
+                        modifier = Modifier.fillMaxSize().padding(6.dp),
                     )
                 } else {
-                    Text(channel.name.take(2).uppercase(), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(channel.name.take(2).uppercase(), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    program?.title ?: channel.name,
+                    color = TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (program != null) "${channel.name}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}" else "En direct",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (program != null) {
+                    Box(Modifier.fillMaxWidth().padding(top = 3.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))) {
+                        Box(Modifier.fillMaxWidth(program.progress(nowSec)).fillMaxHeight().background(Accent))
+                    }
                 }
             }
             if (favorite) Text("★", color = Color.White, fontSize = 16.sp)
         }
-        if (focused) {
-            LiveBadge(modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
+    }
+}
+
+/** Panneau de droite : aperçu vidéo (après 1 s de focus), programme en cours et suivant. */
+@Composable
+private fun ChannelPreviewPanel(channel: Channel, info: EpgInfo?, previewOn: Boolean, modifier: Modifier) {
+    val nowSec = System.currentTimeMillis() / 1000
+    val program = info?.now(nowSec)
+    val next = info?.next(nowSec)
+    val color = remember(channel.name) { channelColor(channel.name) }
+
+    // Un seul flux à la fois : l'aperçu démarre après une courte pause sur la chaîne et s'arrête dès qu'on la quitte.
+    var videoOn by remember(channel.id) { mutableStateOf(false) }
+    LaunchedEffect(channel.id, previewOn) {
+        if (previewOn) {
+            delay(1_000)
+            videoOn = true
+        } else {
+            videoOn = false
         }
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = if (program != null) 12.dp else 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+    }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Brush.linearGradient(listOf(color, Color(0xFF0B0E14)))),
         ) {
-            Text(
-                program?.title ?: channel.name,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                if (program != null) "${channel.name}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}" else "En direct",
-                color = Color(0xCCFFFFFF),
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (program != null) {
-                Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
-                    Box(Modifier.fillMaxWidth(program.progress(nowSec)).fillMaxHeight().background(Color.White))
+            if (videoOn) ChannelPreview(channel.streamUrl, Modifier.fillMaxSize())
+            Box(
+                modifier = Modifier.align(Alignment.TopStart).padding(12.dp).size(40.dp)
+                    .clip(RoundedCornerShape(10.dp)).background(Color(0x66000000)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (channel.logo != null) {
+                    AsyncImage(
+                        model = rememberImage(channel.logo, 128, 128),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(5.dp),
+                    )
+                } else {
+                    Text(channel.name.take(2).uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
+            LiveBadge(modifier = Modifier.align(Alignment.TopEnd).padding(12.dp))
+        }
+        Text(
+            if (program != null) "EN CE MOMENT  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}" else "EN DIRECT",
+            color = Accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 1.6.sp,
+        )
+        Text(
+            program?.title ?: channel.name,
+            color = TextPrimary,
+            fontSize = 26.sp,
+            lineHeight = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (program != null) {
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))) {
+                Box(Modifier.fillMaxWidth(program.progress(nowSec)).fillMaxHeight().background(Accent))
+            }
+        }
+        if (next != null) {
+            Text(
+                "Ensuite  ·  ${next.title}  ·  ${formatClock(next.startSec)}",
+                color = TextSecondary,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
