@@ -251,8 +251,11 @@ private fun App(viewModel: AppViewModel) {
             var detailWasOpen by remember { mutableStateOf(false) }
             LaunchedEffect(detail != null) {
                 if (detail == null && detailWasOpen) {
+                    // Deux essais : tout de suite, puis après le fondu de sortie de la fiche (qui garde le focus pendant l'animation).
                     FocusMemory.requestRestore()
-                    delay(700)
+                    delay(Dur.Normal + 80L)
+                    FocusMemory.requestRestore()
+                    delay(500)
                     FocusMemory.restore = false
                 }
                 detailWasOpen = detail != null
@@ -306,7 +309,9 @@ private fun App(viewModel: AppViewModel) {
                             value = emptyList()
                             value = runCatching { viewModel.similarTo(shownDetail.item, shownDetail.isSeries) }.getOrDefault(emptyList())
                         }.value
-                        Box(modifier = Modifier.fillMaxSize().focusProperties { exit = { FocusRequester.Cancel } }.focusGroup()) {
+                        // Le verrou ne vaut que tant que la fiche est ouverte : au retour, la vignette doit pouvoir reprendre le focus.
+                        val detailOpen by androidx.compose.runtime.rememberUpdatedState(detail != null)
+                        Box(modifier = Modifier.fillMaxSize().focusProperties { exit = { if (detailOpen) FocusRequester.Cancel else FocusRequester.Default } }.focusGroup()) {
                         DetailScreen(
                             detail = shownDetail,
                             resumeFor = { key -> state.resume.firstOrNull { it.key == key } },

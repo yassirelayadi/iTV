@@ -472,7 +472,6 @@ private fun HeroText(
             val restoreTick = FocusMemory.tick.intValue
             LaunchedEffect(restoreTick) {
                 if (FocusMemory.restore && FocusMemory.key == "__hero") {
-                    FocusMemory.restore = false
                     runCatching { heroFocus.requestFocus() }
                 }
             }
@@ -703,7 +702,6 @@ private fun PosterTile(
     val restoreTick = FocusMemory.tick.intValue
     LaunchedEffect(restoreTick) {
         if (FocusMemory.restore && FocusMemory.key == memoryKey) {
-            FocusMemory.restore = false
             runCatching { tileFocus.requestFocus() }
         }
     }
