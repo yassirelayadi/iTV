@@ -3,7 +3,6 @@ package fr.poptv.player.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -25,12 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.size
 import fr.poptv.player.data.Season
 import kotlinx.coroutines.delay
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -175,7 +168,7 @@ fun DetailScreen(
                 modifier = Modifier
                     .width(if (compact) 108.dp else 190.dp)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(Radius.L))
                     .background(Surface1),
             ) {
                 if (item.poster != null) {
@@ -196,8 +189,8 @@ fun DetailScreen(
             ) {
                 Text(
                     item.name,
-                    fontSize = if (compact) 24.sp else 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = if (compact) TypeSize.Title2 else TypeSize.Title1,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = (-1).sp,
                     color = TextPrimary,
                     maxLines = 2,
@@ -207,7 +200,7 @@ fun DetailScreen(
                     Text(
                         metaParts.joinToString("   ·   "),
                         color = TextSecondary,
-                        fontSize = 15.sp,
+                        fontSize = TypeSize.Body,
                         fontWeight = FontWeight.Medium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -219,8 +212,8 @@ fun DetailScreen(
                         Text(
                             plot,
                             color = TextSecondary,
-                            fontSize = 15.sp,
-                            lineHeight = 22.sp,
+                            fontSize = TypeSize.Body,
+                            lineHeight = LineHeight.Body,
                             maxLines = if (compact) 3 else 6,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -233,21 +226,21 @@ fun DetailScreen(
                     ) {
                         PrimaryButton(
                             text = if (resume != null) "Reprendre à ${formatTime(resume.positionMs)}" else "Lecture",
-                            icon = Icons.Filled.PlayArrow,
+                            icon = AppIcons.Play,
                             onClick = { onPlayMovie(false) },
                             modifier = Modifier.focusRequester(focus),
                         )
                         if (resume != null) {
-                            Pill("Depuis le début", onClick = { onPlayMovie(true) }, icon = Icons.Filled.Refresh)
+                            Pill("Depuis le début", onClick = { onPlayMovie(true) }, icon = AppIcons.Refresh)
                         }
-                        Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = Icons.Filled.Favorite, selected = favorite)
-                        Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
+                        Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = AppIcons.Heart, selected = favorite)
+                        Pill("Retour", onClick = onBack, icon = AppIcons.Back)
                     }
                 } else {
                     when {
                         detail.loading -> SkeletonLines(count = 3)
                         detail.error != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Filled.Warning, contentDescription = null, tint = ErrorColor)
+                            Icon(AppIcons.Warning, contentDescription = null, tint = ErrorColor)
                             Text(detail.error, color = TextPrimary, fontWeight = FontWeight.Medium)
                         }
                         else -> {
@@ -262,7 +255,7 @@ fun DetailScreen(
                                 if (target != null) {
                                     PrimaryButton(
                                         text = target.label,
-                                        icon = Icons.Filled.PlayArrow,
+                                        icon = AppIcons.Play,
                                         onClick = { onPlayEpisode(target.episode, target.season.episodes) },
                                         modifier = Modifier.focusRequester(focus),
                                     )
@@ -280,11 +273,11 @@ fun DetailScreen(
                                         modifier = Modifier.focusRequester(seasonFocus),
                                     )
                                 }
-                                Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = Icons.Filled.Favorite, selected = favorite)
+                                Pill(if (favorite) "Dans Ma liste" else "Ma liste", onClick = onToggleFavorite, icon = AppIcons.Heart, selected = favorite)
                                 if (similar.isNotEmpty()) {
                                     Pill(if (showSimilar) "Épisodes" else "Similaires", onClick = { showSimilar = !showSimilar })
                                 }
-                                Pill("Retour", onClick = onBack, icon = Icons.Filled.ArrowBack)
+                                Pill("Retour", onClick = onBack, icon = AppIcons.Back)
                             }
 
                             AnimatedVisibility(
@@ -394,11 +387,11 @@ private fun EpisodePanel(episode: Episode, fallbackPlot: String?) {
     ).joinToString("  ·  ")
     val summary = episode.plot ?: fallbackPlot
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
-        Text(line, color = TextSecondary, fontSize = 13.sp)
+        Text(line, color = TextSecondary, fontSize = TypeSize.Caption)
         Text(
             episode.title,
             color = TextPrimary,
-            fontSize = 24.sp,
+            fontSize = TypeSize.Title2,
             fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -407,13 +400,13 @@ private fun EpisodePanel(episode: Episode, fallbackPlot: String?) {
             Text(
                 summary,
                 color = TextSecondary,
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
+                fontSize = TypeSize.Body,
+                lineHeight = LineHeight.Body,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
         } else {
-            Text("Pas de résumé pour cet épisode.", color = TextSecondary, fontSize = 15.sp)
+            Text("Pas de résumé pour cet épisode.", color = TextSecondary, fontSize = TypeSize.Body)
         }
     }
 }
@@ -461,8 +454,8 @@ private fun EpisodeTile(
             Text(
                 "${episode.number}",
                 color = if (episode.image != null) Color.White else TextSecondary,
-                fontSize = if (episode.image != null) 15.sp else 34.sp,
-                fontWeight = if (episode.image != null) FontWeight.SemiBold else FontWeight.Bold,
+                fontSize = if (episode.image != null) TypeSize.Body else TypeSize.Title1,
+                fontWeight = if (episode.image != null) FontWeight.Bold else FontWeight.Bold,
                 modifier = if (episode.image != null) {
                     Modifier
                         .align(Alignment.BottomStart)
@@ -484,8 +477,8 @@ private fun EpisodeTile(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                    Text("Reprendre", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(AppIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                    Text("Reprendre", color = Color.White, fontSize = TypeSize.Caption, fontWeight = FontWeight.SemiBold)
                 }
             }
             // Coche « vu », en haut à droite.
@@ -524,7 +517,7 @@ private fun EpisodeTile(
             Text(
                 episode.title,
                 color = titleColor,
-                fontSize = 13.sp,
+                fontSize = TypeSize.Caption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -532,7 +525,7 @@ private fun EpisodeTile(
                 Text(
                     meta,
                     color = if (resume != null && !watched) Accent else TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = TypeSize.Caption,
                     fontWeight = if (resume != null && !watched) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -551,7 +544,7 @@ private fun SeasonButton(label: String, onClick: () -> Unit, modifier: Modifier 
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(Radius.M),
         focusScale = 1.08f,
         idleColor = Surface2,
         focusedColor = Color.White,
@@ -582,7 +575,7 @@ private fun SeasonMenu(
         modifier = Modifier
             .width(230.dp)
             .heightIn(max = 150.dp)
-            .background(Color(0xF2121214), RoundedCornerShape(14.dp))
+            .background(Color(0xF2121214), RoundedCornerShape(Radius.L))
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -592,7 +585,7 @@ private fun SeasonMenu(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (index == selectedIndex) Modifier.focusRequester(optionFocus) else Modifier),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(Radius.L),
                 focusScale = 1.03f,
                 idleColor = Color.Transparent,
                 focusedColor = Color.White,
@@ -603,7 +596,7 @@ private fun SeasonMenu(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(seasonLabel(s), color = color, fontSize = 17.sp, maxLines = 1)
+                    Text(seasonLabel(s), color = color, fontSize = TypeSize.Title3, maxLines = 1)
                     if (index == selectedIndex) {
                         Icon(AppIcons.Check, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
                     }
@@ -651,7 +644,7 @@ private fun nextTarget(
 @Composable
 private fun SimilarRow(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.poptv.player.data.VodItem) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Titres similaires", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Titres similaires", color = TextPrimary, fontSize = TypeSize.Title3, fontWeight = FontWeight.SemiBold)
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
@@ -674,7 +667,7 @@ private fun SimilarRow(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.po
                             )
                         }
                     }
-                    Text(other.name, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(other.name, color = TextSecondary, fontSize = TypeSize.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -725,7 +718,7 @@ private fun DetailTv(
                 modifier = Modifier
                     .width(190.dp)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(Radius.L))
                     .background(Surface1),
             ) {
                 if (poster != null) {
@@ -744,8 +737,8 @@ private fun DetailTv(
                         Text(
                             category.uppercase(),
                             color = Color(0xCCFFFFFF),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = TypeSize.Caption,
+                            fontWeight = FontWeight.SemiBold,
                             letterSpacing = 1.8.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -754,9 +747,9 @@ private fun DetailTv(
                 }
                 Text(
                     item.name,
-                    fontSize = 36.sp,
-                    lineHeight = 40.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = TypeSize.Title1,
+                    lineHeight = LineHeight.Title1,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = (-1).sp,
                     color = TextPrimary,
                     maxLines = 2,
@@ -767,7 +760,7 @@ private fun DetailTv(
                     Text(
                         metaShown.joinToString("   ·   "),
                         color = TextSecondary,
-                        fontSize = 15.sp,
+                        fontSize = TypeSize.Body,
                         fontWeight = FontWeight.Medium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -777,15 +770,15 @@ private fun DetailTv(
                     Text(
                         plot,
                         color = TextSecondary,
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp,
+                        fontSize = TypeSize.Body,
+                        lineHeight = LineHeight.Body,
                         maxLines = 5,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Spacer(Modifier.height(4.dp))
                 val listLabel = if (favorite) "Dans ma liste" else "Ma liste"
-                val listIcon = if (favorite) AppIcons.Check else Icons.Filled.Add
+                val listIcon = if (favorite) AppIcons.Check else AppIcons.Plus
                 androidx.compose.foundation.layout.FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -794,15 +787,15 @@ private fun DetailTv(
                         val resume = resumeFor("m:${item.id}")
                         PrimaryButton(
                             text = if (resume != null) "Reprendre à ${formatTime(resume.positionMs)}" else "Lecture",
-                            icon = Icons.Filled.PlayArrow,
+                            icon = AppIcons.Play,
                             onClick = { onPlayMovie(false) },
                             modifier = Modifier.focusRequester(primaryFocus),
                         )
-                        if (resume != null) SecondaryButton("Depuis le début", onClick = { onPlayMovie(true) }, icon = Icons.Filled.Refresh)
+                        if (resume != null) SecondaryButton("Depuis le début", onClick = { onPlayMovie(true) }, icon = AppIcons.Refresh)
                     } else if (target != null) {
                         PrimaryButton(
                             text = target.label,
-                            icon = Icons.Filled.PlayArrow,
+                            icon = AppIcons.Play,
                             onClick = { onPlayEpisode(target.episode, target.season.episodes) },
                             modifier = Modifier.focusRequester(primaryFocus),
                         )
@@ -845,7 +838,7 @@ private fun PanelTab(text: String, active: Boolean, focusRequester: FocusRequest
     FocusItem(
         onClick = onSelect,
         modifier = Modifier.focusRequester(focusRequester),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(Radius.S),
         focusScale = 1.03f,
         idleColor = Color.Transparent,
         focusedColor = Color.Transparent,
@@ -856,8 +849,8 @@ private fun PanelTab(text: String, active: Boolean, focusRequester: FocusRequest
             Text(
                 text,
                 color = if (active) TextPrimary else TextSecondary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = TypeSize.Title3,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
             Box(
@@ -921,7 +914,7 @@ private fun EpisodeList(
                 modifier = Modifier.fillMaxWidth().then(
                     if (position == 0) Modifier.focusProperties { up = if (hasChips) chipFocus else activeTab } else Modifier,
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(Radius.M),
                 focusScale = 1.02f,
                 focusRing = true,
                 idleColor = Color.Transparent,
@@ -932,7 +925,7 @@ private fun EpisodeList(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Box(
-                        modifier = Modifier.width(132.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(Surface1),
+                        modifier = Modifier.width(132.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(Radius.S)).background(Surface1),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (episode.image != null) {
@@ -943,7 +936,7 @@ private fun EpisodeList(
                                 modifier = Modifier.fillMaxSize(),
                             )
                         } else {
-                            Text("${episode.number}", color = TextSecondary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                            Text("${episode.number}", color = TextSecondary, fontSize = TypeSize.Title2, fontWeight = FontWeight.Bold)
                         }
                         if (resume != null && resume.durationMs > 0 && !seen) {
                             val fraction = (resume.positionMs.toFloat() / resume.durationMs).coerceIn(0f, 1f)
@@ -956,7 +949,7 @@ private fun EpisodeList(
                         Text(
                             "${episode.number}. ${episode.title}",
                             color = TextPrimary,
-                            fontSize = 16.sp,
+                            fontSize = TypeSize.Body,
                             fontWeight = FontWeight.Bold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -971,7 +964,7 @@ private fun EpisodeList(
                             Text(
                                 meta,
                                 color = if (resume != null && !seen) Accent else TextSecondary,
-                                fontSize = 13.sp,
+                                fontSize = TypeSize.Caption,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -997,7 +990,7 @@ private fun SimilarList(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.p
                 modifier = Modifier.fillMaxWidth().then(
                     if (position == 0) Modifier.focusProperties { up = activeTab } else Modifier,
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(Radius.M),
                 focusScale = 1.02f,
                 focusRing = true,
                 idleColor = Color.Transparent,
@@ -1007,7 +1000,7 @@ private fun SimilarList(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.p
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Box(modifier = Modifier.width(60.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(7.dp))) {
+                    Box(modifier = Modifier.width(60.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(Radius.S))) {
                         PosterPlaceholder(other.name, Modifier.fillMaxSize())
                         if (other.poster != null) {
                             AsyncImage(
@@ -1019,9 +1012,9 @@ private fun SimilarList(items: List<fr.poptv.player.data.VodItem>, onOpen: (fr.p
                         }
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(other.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        other.year?.let { Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1) }
-                        cleanRating(other.rating)?.let { Text("★ $it", color = Color(0xFFFFD166), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+                        Text(other.name, color = TextPrimary, fontSize = TypeSize.Body, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        other.year?.let { Text(it, color = TextSecondary, fontSize = TypeSize.Caption, maxLines = 1) }
+                        cleanRating(other.rating)?.let { Text("★ $it", color = Color(0xFFFFD166), fontSize = TypeSize.Caption, fontWeight = FontWeight.SemiBold, maxLines = 1) }
                     }
                 }
             }

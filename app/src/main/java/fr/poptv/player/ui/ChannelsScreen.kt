@@ -2,8 +2,6 @@ package fr.poptv.player.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,8 +26,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -121,14 +117,14 @@ fun ChannelsScreen(
             when {
                 state.loading -> CatalogSkeleton()
                 state.selectedCategory == CAT_FAV && query.isEmpty() -> EmptyState(
-                    icon = Icons.Filled.Favorite,
+                    icon = AppIcons.Heart,
                     title = "Aucun favori",
                     message = "Appuie longuement sur OK sur une chaîne (ou appui long au doigt) pour l'ajouter ici.",
                     actionLabel = "Voir toutes les chaînes",
                     onAction = { onSelectCategory(CAT_ALL) },
                 )
                 else -> EmptyState(
-                    icon = Icons.Filled.Search,
+                    icon = AppIcons.Search,
                     title = "Aucune chaîne trouvée",
                     message = if (query.isNotEmpty()) "Rien ne correspond à « $query »." else "Cette catégorie est vide.",
                     actionLabel = if (query.isNotEmpty()) "Effacer la recherche" else "Voir toutes les chaînes",
@@ -239,8 +235,8 @@ private fun ChannelTile(
                     Text(
                         channel.name.take(2).uppercase(),
                         color = TextSecondary,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = TypeSize.Title2,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
@@ -248,7 +244,7 @@ private fun ChannelTile(
             Text(
                 channel.name,
                 color = TextPrimary,
-                fontSize = 13.sp,
+                fontSize = TypeSize.Caption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -257,7 +253,7 @@ private fun ChannelTile(
                 Text(
                     program.title,
                     color = TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = TypeSize.Caption,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
@@ -285,7 +281,7 @@ private fun ChannelTile(
             Text(
                 "★",
                 color = Color.White,
-                fontSize = 17.sp,
+                fontSize = TypeSize.Title3,
                 modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
             )
         }
@@ -372,7 +368,7 @@ private fun ChannelRow(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = Modifier.fillMaxWidth().height(74.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(Radius.L),
         focusScale = 1.02f,
         focusRing = true,
         idleColor = Color.Transparent,
@@ -384,7 +380,7 @@ private fun ChannelRow(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(
-                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)).background(color),
+                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(Radius.M)).background(color),
                 contentAlignment = Alignment.Center,
             ) {
                 if (channel.logo != null) {
@@ -395,22 +391,22 @@ private fun ChannelRow(
                         modifier = Modifier.fillMaxSize().padding(6.dp),
                     )
                 } else {
-                    Text(channel.name.take(2).uppercase(), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(channel.name.take(2).uppercase(), color = Color.White, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
                 }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     program?.title ?: channel.name,
                     color = TextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = TypeSize.Title3,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     if (program != null) "${channel.name}  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}" else "En direct",
                     color = TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = TypeSize.Caption,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -420,7 +416,7 @@ private fun ChannelRow(
                     }
                 }
             }
-            if (favorite) Text("★", color = Color.White, fontSize = 16.sp)
+            if (favorite) Text("★", color = Color.White, fontSize = TypeSize.Body)
         }
     }
 }
@@ -449,13 +445,13 @@ private fun ChannelPreviewPanel(channel: Channel, info: EpgInfo?, previewOn: Boo
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(Radius.L))
                 .background(Brush.linearGradient(listOf(color, Color(0xFF0B0E14)))),
         ) {
             if (videoOn) ChannelPreview(channel.streamUrl, Modifier.fillMaxSize())
             Box(
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp).size(40.dp)
-                    .clip(RoundedCornerShape(10.dp)).background(Color(0x66000000)),
+                    .clip(RoundedCornerShape(Radius.M)).background(Color(0x66000000)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (channel.logo != null) {
@@ -466,7 +462,7 @@ private fun ChannelPreviewPanel(channel: Channel, info: EpgInfo?, previewOn: Boo
                         modifier = Modifier.fillMaxSize().padding(5.dp),
                     )
                 } else {
-                    Text(channel.name.take(2).uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(channel.name.take(2).uppercase(), color = Color.White, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
                 }
             }
             LiveBadge(modifier = Modifier.align(Alignment.TopEnd).padding(12.dp))
@@ -474,16 +470,16 @@ private fun ChannelPreviewPanel(channel: Channel, info: EpgInfo?, previewOn: Boo
         Text(
             if (program != null) "EN CE MOMENT  ·  ${formatClock(program.startSec)} – ${formatClock(program.endSec)}" else "EN DIRECT",
             color = Accent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontSize = TypeSize.Caption,
+            fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.6.sp,
         )
         Text(
             program?.title ?: channel.name,
             color = TextPrimary,
-            fontSize = 26.sp,
-            lineHeight = 30.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontSize = TypeSize.Title2,
+            lineHeight = LineHeight.Title2,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
@@ -496,7 +492,7 @@ private fun ChannelPreviewPanel(channel: Channel, info: EpgInfo?, previewOn: Boo
             Text(
                 "Ensuite  ·  ${next.title}  ·  ${formatClock(next.startSec)}",
                 color = TextSecondary,
-                fontSize = 14.sp,
+                fontSize = TypeSize.Body,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

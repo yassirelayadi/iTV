@@ -51,29 +51,29 @@ fun TmdbKeyScreen(
                 .padding(horizontal = if (LocalCompact.current) 20.dp else 0.dp, vertical = 16.dp)
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(Radius.L))
                 .background(GlassFill)
-                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(Radius.L))
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 28.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Tendances et à l'affiche", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+            Text("Tendances et à l'affiche", fontSize = TypeSize.Title2, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Text(
                 "Crée un compte gratuit sur themoviedb.org, puis ouvre Paramètres → API et copie ta clé " +
                     "(ou le long jeton qui commence par « eyJ »). Colle-la ci-dessous : elle est vérifiée, " +
                     "puis chiffrée sur cet appareil et jamais partagée.",
                 color = TextSecondary,
-                fontSize = 15.sp,
-                lineHeight = 21.sp,
+                fontSize = TypeSize.Body,
+                lineHeight = LineHeight.Body,
                 textAlign = TextAlign.Center,
             )
             if (usesDefault) {
                 Text(
                     "L'app contient déjà une clé par défaut : ta propre clé est facultative.",
                     color = TextSecondary,
-                    fontSize = 15.sp,
+                    fontSize = TypeSize.Body,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -99,7 +99,7 @@ fun TmdbKeyScreen(
             Text(
                 "Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.",
                 color = TextSecondary,
-                fontSize = 13.sp,
+                fontSize = TypeSize.Caption,
                 textAlign = TextAlign.Center,
             )
         }

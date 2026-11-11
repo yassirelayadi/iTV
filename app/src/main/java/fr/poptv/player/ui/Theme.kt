@@ -27,6 +27,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.text.TextStyle
@@ -60,17 +61,57 @@ val GlassFocus = Color(0x33FFFFFF)
 val AccentBrush = Brush.linearGradient(listOf(Color(0xFF7FDCFF), Color(0xFF1A98FF), Color(0xFF3D6BFF)))
 
 /**
- * Police de toute l'app : Inter, la police libre la plus proche de la police d'Apple (SF Pro),
- * dont la licence n'autorise pas l'usage sur Android.
+ * Police de toute l'app : Plus Jakarta Sans (licence OFL). Graisse maximale : Bold, réservée au Titre 1.
+ * Light et ExtraBold renvoient vers Regular et Bold pour ne jamais sortir de l'échelle.
  */
 val AppFont = FontFamily(
-    Font(R.font.inter_light, FontWeight.Light),
-    Font(R.font.inter_regular, FontWeight.Normal),
-    Font(R.font.inter_medium, FontWeight.Medium),
-    Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_bold, FontWeight.Bold),
-    Font(R.font.inter_extrabold, FontWeight.ExtraBold),
+    Font(R.font.jakarta_regular, FontWeight.Light),
+    Font(R.font.jakarta_regular, FontWeight.Normal),
+    Font(R.font.jakarta_medium, FontWeight.Medium),
+    Font(R.font.jakarta_semibold, FontWeight.SemiBold),
+    Font(R.font.jakarta_bold, FontWeight.Bold),
+    Font(R.font.jakarta_bold, FontWeight.ExtraBold),
 )
+
+/**
+ * Échelle typographique : les seules tailles autorisées dans l'app.
+ * Titre 1 (bandeau, fiches) · Titre 2 (titres d'écran) · Titre 3 (rangées, onglets) · Corps · Légende · Étiquette.
+ */
+object TypeSize {
+    val Title1 = 30.sp
+    val Title2 = 22.sp
+    val Title3 = 17.sp
+    val Body = 14.sp
+    val Caption = 12.sp
+    val Label = 11.sp
+}
+
+/** Interlignes associés à l'échelle. */
+object LineHeight {
+    val Title1 = 36.sp
+    val Title2 = 28.sp
+    val Title3 = 22.sp
+    val Body = 20.sp
+    val Caption = 16.sp
+}
+
+/** Rayons d'angle : S (badges, vignettes), M (boutons, cartes), L (panneaux, grandes cartes). Pilule : RoundedCornerShape(50). */
+object Radius {
+    val S = 6.dp
+    val M = 10.dp
+    val L = 16.dp
+}
+
+/** Espacements : grille de 4. */
+object Space {
+    val X1 = 4.dp
+    val X2 = 8.dp
+    val X3 = 12.dp
+    val X4 = 16.dp
+    val X6 = 24.dp
+    val X8 = 32.dp
+    val X12 = 48.dp
+}
 
 /** Police du logo : Sora Bold. */
 val LogoFont = FontFamily(Font(R.font.sora_bold, FontWeight.Bold))
@@ -84,7 +125,7 @@ fun LogoText(size: TextUnit, modifier: Modifier = Modifier) {
             append("TV")
         },
         fontFamily = AppFont,
-        fontWeight = FontWeight.ExtraBold,
+        fontWeight = FontWeight.Bold,
         fontSize = size,
         color = Color.White,
         modifier = modifier,
@@ -105,8 +146,8 @@ private fun appTypography(): Typography {
         titleLarge = base.titleLarge.inter(),
         titleMedium = base.titleMedium.inter(),
         titleSmall = base.titleSmall.inter(),
-        bodyLarge = base.bodyLarge.inter(),
-        bodyMedium = base.bodyMedium.inter(),
+        bodyLarge = base.bodyLarge.inter().copy(fontSize = 14.sp, lineHeight = 20.sp),
+        bodyMedium = base.bodyMedium.inter().copy(fontSize = 14.sp, lineHeight = 20.sp),
         bodySmall = base.bodySmall.inter(),
         labelLarge = base.labelLarge.inter(),
         labelMedium = base.labelMedium.inter(),
@@ -121,13 +162,13 @@ val LocalCompact = androidx.compose.runtime.compositionLocalOf { false }
 object UiScale {
     private const val FILE = "itv_ui"
     private const val KEY = "ui_scale"
-    val value = androidx.compose.runtime.mutableFloatStateOf(0.9f)
+    val value = androidx.compose.runtime.mutableFloatStateOf(1.0f)
     private var loaded = false
 
     fun load(context: android.content.Context) {
         if (loaded) return
         loaded = true
-        value.floatValue = context.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).getFloat(KEY, 0.9f)
+        value.floatValue = context.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).getFloat(KEY, 1.0f)
     }
 
     fun set(context: android.content.Context, scale: Float) {

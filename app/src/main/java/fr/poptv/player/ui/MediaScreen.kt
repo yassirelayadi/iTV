@@ -11,11 +11,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Row
 import androidx.compose.animation.Crossfade
@@ -281,7 +276,7 @@ fun MediaScreen(
         when {
             catalog.size == 0 -> when {
                 state.mediaError != null -> EmptyState(
-                    icon = Icons.Filled.Warning,
+                    icon = AppIcons.Warning,
                     title = "Impossible de charger le catalogue",
                     message = state.mediaError,
                     error = true,
@@ -305,7 +300,7 @@ fun MediaScreen(
                 Box(Modifier.fillMaxSize())
             } else if (gridItems.isEmpty()) {
                 EmptyState(
-                    icon = Icons.Filled.Search,
+                    icon = AppIcons.Search,
                     title = "Aucun résultat",
                     message = if (query.isNotEmpty()) "Rien ne correspond à « $query »." else "Cette catégorie ne contient aucun titre.",
                     actionLabel = if (query.isNotEmpty()) "Effacer la recherche" else "Retour à l'accueil",
@@ -461,9 +456,9 @@ private fun HeroText(
             Text(
                 hero.title,
                 color = TextPrimary,
-                fontSize = if (compact) (if (longTitle) 20.sp else 24.sp) else (if (longTitle) 26.sp else 36.sp),
-                lineHeight = if (compact) 26.sp else (if (longTitle) 30.sp else 42.sp),
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = if (compact) (if (longTitle) TypeSize.Title3 else TypeSize.Title2) else (if (longTitle) TypeSize.Title2 else TypeSize.Title1),
+                lineHeight = if (compact) LineHeight.Title3 else (if (longTitle) LineHeight.Title2 else LineHeight.Title1),
+                fontWeight = FontWeight.Bold,
                 letterSpacing = (-1.5).sp,
                 maxLines = if (compact) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
@@ -471,7 +466,7 @@ private fun HeroText(
             // Catégorie et note sur une seule ligne : un élément de moins, donc plus d'air.
             val infoLine = listOfNotNull(hero.meta.ifEmpty { null }, hero.tag?.takeIf { it.isNotBlank() }).joinToString("   ·   ")
             if (infoLine.isNotEmpty()) {
-                Text(infoLine, color = Color(0xE6EDF1F7), fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(infoLine, color = Color(0xE6EDF1F7), fontSize = if (compact) TypeSize.Caption else TypeSize.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
             val restoreTick = FocusMemory.tick.intValue
@@ -490,7 +485,7 @@ private fun HeroText(
                         val target = hero.item
                         if (entry != null) onResume(entry) else if (target != null) onOpen(target)
                     },
-                    icon = Icons.Filled.PlayArrow,
+                    icon = AppIcons.Play,
                     modifier = Modifier.focusRequester(heroFocus),
                 )
                 val key = hero.item?.id?.let { favs.prefix + it }
@@ -498,7 +493,7 @@ private fun HeroText(
                     SecondaryButton(
                         text = if (key in favs.keys) "Dans ma liste" else "Ma liste",
                         onClick = { favs.toggle(key) },
-                        icon = if (key in favs.keys) AppIcons.Check else Icons.Filled.Add,
+                        icon = if (key in favs.keys) AppIcons.Check else AppIcons.Plus,
                     )
                 }
             }
@@ -573,8 +568,8 @@ private fun MediaTabs(categories: List<Category>, selected: String, onSelect: (S
 private fun ShelfTitle(text: String) {
     Text(
         text,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.ExtraBold,
+        fontSize = TypeSize.Title3,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = (-0.4).sp,
         color = TextPrimary,
         modifier = Modifier.padding(horizontal = ScreenPadding),
@@ -745,7 +740,7 @@ private fun PosterTile(
                 Text(
                     "♥",
                     color = Color(0xFFFF3B30),
-                    fontSize = 15.sp,
+                    fontSize = TypeSize.Body,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(6.dp)
@@ -769,9 +764,9 @@ private fun PosterTile(
                         .background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xE6000000))),
                 ) {
                     Column(modifier = Modifier.align(Alignment.BottomStart).padding(14.dp)) {
-                        Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(title, color = Color.White, fontSize = TypeSize.Title3, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (!subtitle.isNullOrBlank()) {
-                            Text(subtitle, color = Color(0xCCFFFFFF), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(subtitle, color = Color(0xCCFFFFFF), fontSize = TypeSize.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -780,7 +775,7 @@ private fun PosterTile(
                 Text(
                     "★ $rating",
                     color = Color.White,
-                    fontSize = 13.sp,
+                    fontSize = TypeSize.Caption,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -809,7 +804,7 @@ private fun PosterTile(
         Text(
             title,
             color = titleColor,
-            fontSize = if (LocalCompact.current) 13.sp else 14.sp,
+            fontSize = if (LocalCompact.current) TypeSize.Caption else TypeSize.Body,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

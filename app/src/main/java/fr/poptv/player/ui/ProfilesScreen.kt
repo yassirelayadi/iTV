@@ -73,8 +73,8 @@ fun ProfilesScreen(
         ) {
             Text(
                 if (creating) "Nouveau profil" else if (managing) "Gérer les profils" else "Sélectionnez un profil",
-                fontSize = 34.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = TypeSize.Title2,
+                fontWeight = FontWeight.SemiBold,
                 color = TextPrimary,
             )
             Spacer(Modifier.height(32.dp))
@@ -128,7 +128,7 @@ fun ProfilesScreen(
                     Text(
                         "Supprimer un profil efface ses favoris, son historique et ses reprises.",
                         color = TextSecondary,
-                        fontSize = 13.sp,
+                        fontSize = TypeSize.Caption,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -157,10 +157,10 @@ private fun Avatar(
             focusRing = true,
         ) {
             Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {
-                Text(initial, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+                Text(initial, color = Color.White, fontSize = TypeSize.Title1, fontWeight = FontWeight.Bold)
                 if (badge != null) {
                     Box(Modifier.fillMaxSize().background(Color(0x99000000), CircleShape), contentAlignment = Alignment.Center) {
-                        Text(badge, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                        Text(badge, color = Color.White, fontSize = TypeSize.Title1, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -169,7 +169,7 @@ private fun Avatar(
         Text(
             label,
             color = if (selected) Accent else TextPrimary,
-            fontSize = 16.sp,
+            fontSize = TypeSize.Body,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
             textAlign = TextAlign.Center,

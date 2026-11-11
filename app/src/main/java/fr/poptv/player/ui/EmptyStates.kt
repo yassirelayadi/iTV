@@ -72,16 +72,16 @@ fun EmptyState(
             Text(
                 title,
                 color = if (error) ErrorColor else TextPrimary,
-                fontSize = if (compact) 17.sp else 24.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = if (compact) TypeSize.Title3 else TypeSize.Title2,
+                fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.5).sp,
                 textAlign = TextAlign.Center,
             )
             Text(
                 message,
                 color = TextSecondary,
-                fontSize = if (compact) 13.sp else 17.sp,
-                lineHeight = if (compact) 18.sp else 23.sp,
+                fontSize = if (compact) TypeSize.Caption else TypeSize.Title3,
+                lineHeight = if (compact) LineHeight.Body else LineHeight.Title3,
                 textAlign = TextAlign.Center,
             )
             if (actionLabel != null && onAction != null) {
@@ -128,8 +128,8 @@ fun CatalogSkeleton(modifier: Modifier = Modifier) {
                                 .width(width)
                                 .height(width * 1.5f)
                                 .alpha(pulse)
-                                .background(GlassFill, RoundedCornerShape(14.dp))
-                                .border(1.dp, GlassBorder, RoundedCornerShape(14.dp)),
+                                .background(GlassFill, RoundedCornerShape(Radius.L))
+                                .border(1.dp, GlassBorder, RoundedCornerShape(Radius.L)),
                         )
                     }
                 }
@@ -154,7 +154,7 @@ fun SkeletonLines(count: Int, modifier: Modifier = Modifier) {
                     .fillMaxWidth(if (i == count - 1) 0.5f else 0.8f)
                     .height(18.dp)
                     .alpha(pulse)
-                    .background(GlassBorder, RoundedCornerShape(6.dp)),
+                    .background(GlassBorder, RoundedCornerShape(Radius.S)),
             )
         }
     }

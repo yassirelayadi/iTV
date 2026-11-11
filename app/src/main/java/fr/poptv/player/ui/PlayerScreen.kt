@@ -262,7 +262,7 @@ fun PlayerScreen(
                     Text(
                         "Reconnexion… ($retries/$MAX_RETRIES)",
                         color = Color.White,
-                        fontSize = 15.sp,
+                        fontSize = TypeSize.Body,
                         modifier = Modifier.padding(top = 12.dp),
                     )
                 }
@@ -273,16 +273,16 @@ fun PlayerScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0xCC000000), RoundedCornerShape(14.dp))
+                    .background(Color(0xCC000000), RoundedCornerShape(Radius.L))
                     .padding(horizontal = 28.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(it, color = ErrorColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text(it, color = ErrorColor, fontSize = TypeSize.Title3, fontWeight = FontWeight.SemiBold)
                 Text(
                     if (LocalCompact.current) "Touche l'écran pour réessayer" else "OK : réessayer   ·   Haut / Bas : autre chaîne   ·   Retour : quitter",
                     color = TextSecondary,
-                    fontSize = 15.sp,
+                    fontSize = TypeSize.Body,
                 )
             }
         }
@@ -310,14 +310,14 @@ fun PlayerScreen(
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .size(64.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(Radius.L))
                                 .background(Color(0x33FFFFFF)),
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(channel.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp)
-                            LiveBadge(fontSize = 12.sp)
+                            Text(channel.name, color = Color.White, fontSize = TypeSize.Title2, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp)
+                            LiveBadge(fontSize = TypeSize.Caption)
                         }
                         val nowSec = System.currentTimeMillis() / 1000
                         val current = epg?.now(nowSec)
@@ -326,7 +326,7 @@ fun PlayerScreen(
                             Text(
                                 "${current.title}  ·  ${formatClock(current.startSec)} – ${formatClock(current.endSec)}",
                                 color = Color.White,
-                                fontSize = 20.sp,
+                                fontSize = TypeSize.Title3,
                                 maxLines = 1,
                             )
                             Box(
@@ -348,7 +348,7 @@ fun PlayerScreen(
                             Text(
                                 "Ensuite : ${upcoming.title}  ·  ${formatClock(upcoming.startSec)}",
                                 color = TextSecondary,
-                                fontSize = 15.sp,
+                                fontSize = TypeSize.Body,
                                 maxLines = 1,
                             )
                         }

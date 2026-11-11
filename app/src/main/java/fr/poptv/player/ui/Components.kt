@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -59,7 +60,7 @@ import androidx.compose.ui.zIndex
 fun FocusItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(10.dp),
+    shape: Shape = RoundedCornerShape(Radius.M),
     focusScale: Float = 1.04f,
     idleColor: Color = GlassFill,
     focusedColor: Color = GlassFocus,
@@ -109,7 +110,7 @@ fun Pill(
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(Radius.M),
         focusScale = 1.04f,
         idleColor = if (selected) Accent else Color.Transparent,
         focusedColor = Color.White,
@@ -120,15 +121,16 @@ fun Pill(
             else -> TextSecondary
         }
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.height(36.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             Text(
                 text,
                 color = color,
-                fontWeight = FontWeight.Bold,
+                fontSize = TypeSize.Body,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -167,18 +169,18 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(Radius.M),
         focusScale = 1.04f,
         idleColor = Color(0xFFE8EEF5),
         focusedColor = Color.White,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+            modifier = Modifier.height(36.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (icon != null) Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(22.dp))
-            Text(text, color = Color.Black, fontWeight = FontWeight.Bold)
+            if (icon != null) Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+            Text(text, color = Color.Black, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -191,19 +193,19 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(Radius.M),
         focusScale = 1.04f,
         idleColor = Color(0x33FFFFFF),
         focusedColor = Color.White,
     ) { focused ->
         val tint = if (focused) Color.Black else Color.White
         Row(
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+            modifier = Modifier.height(36.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-            Text(text, color = tint, fontWeight = FontWeight.Bold)
+            if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+            Text(text, color = tint, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -217,7 +219,7 @@ fun MinimalField(
     keyboardType: KeyboardType = KeyboardType.Text,
     password: Boolean = false,
     imeAction: ImeAction = ImeAction.Next,
-    shape: Shape = RoundedCornerShape(14.dp),
+    shape: Shape = RoundedCornerShape(Radius.L),
     leadingIcon: ImageVector? = null,
 ) {
     TextField(
@@ -303,7 +305,7 @@ fun PosterPlaceholder(title: String, modifier: Modifier = Modifier) {
         Text(
             label,
             color = Color(0xB3FFFFFF),
-            fontSize = 13.sp,
+            fontSize = TypeSize.Caption,
             fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             maxLines = 4,

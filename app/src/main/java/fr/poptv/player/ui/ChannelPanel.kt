@@ -136,15 +136,15 @@ fun ChannelPanel(
             Text(
                 if (showCategories) "Catégories" else selectedLabel,
                 color = TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = TypeSize.Title3,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 if (showCategories) "OK : choisir   ·   Droite : retour" else "Gauche : changer de catégorie",
                 color = TextSecondary,
-                fontSize = 13.sp,
+                fontSize = TypeSize.Caption,
             )
         }
         if (showCategories) {
@@ -159,7 +159,7 @@ fun ChannelPanel(
                     FocusItem(
                         onClick = { selected = id; showCategories = false },
                         modifier = Modifier.fillMaxWidth().then(if (isSelected) Modifier.focusRequester(catFocus) else Modifier),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(Radius.M),
                         focusScale = 1f,
                         idleColor = if (isSelected) GlassFill else Color.Transparent,
                         focusedColor = Color.White,
@@ -172,7 +172,7 @@ fun ChannelPanel(
                             Text(
                                 label,
                                 color = if (focused) Color.Black else TextPrimary,
-                                fontSize = 15.sp,
+                                fontSize = TypeSize.Body,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -181,7 +181,7 @@ fun ChannelPanel(
                             Text(
                                 count.toString(),
                                 color = if (focused) Color(0xFF444B55) else TextSecondary,
-                                fontSize = 13.sp,
+                                fontSize = TypeSize.Caption,
                             )
                             if (isSelected) {
                                 Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Accent))
@@ -208,7 +208,7 @@ fun ChannelPanel(
                     FocusItem(
                         onClick = { onPick(channel, list) },
                         modifier = Modifier.fillMaxWidth().then(requester),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(Radius.M),
                         focusScale = 1f,
                         idleColor = if (isCurrent) GlassFill else Color.Transparent,
                         focusedColor = Color.White,
@@ -219,7 +219,7 @@ fun ChannelPanel(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             Box(
-                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(Surface1),
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(Radius.S)).background(Surface1),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (channel.logo != null) {
@@ -235,7 +235,7 @@ fun ChannelPanel(
                                 Text(
                                     channel.name,
                                     color = if (focused) Color.Black else TextPrimary,
-                                    fontSize = 15.sp,
+                                    fontSize = TypeSize.Body,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -245,7 +245,7 @@ fun ChannelPanel(
                                     Text(
                                         program,
                                         color = if (focused) Color(0xFF444B55) else TextSecondary,
-                                        fontSize = 13.sp,
+                                        fontSize = TypeSize.Caption,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )

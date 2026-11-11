@@ -215,7 +215,7 @@ internal fun PlayerSidePanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(row.icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                        Text(row.title, color = TextSecondary, fontSize = 15.sp)
+                        Text(row.title, color = TextSecondary, fontSize = TypeSize.Body)
                     }
 
                     is PanelRow.Choice -> FocusItem(
@@ -226,7 +226,7 @@ internal fun PlayerSidePanel(
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(if (index == initial) Modifier.focusRequester(firstFocus) else Modifier),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(Radius.L),
                         focusScale = 1.03f,
                         idleColor = Color.Transparent,
                         focusedColor = Color.White,
@@ -240,7 +240,7 @@ internal fun PlayerSidePanel(
                             Text(
                                 row.option.label,
                                 color = color,
-                                fontSize = 17.sp,
+                                fontSize = TypeSize.Title3,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
@@ -271,7 +271,7 @@ internal fun NextEpisodeCard(
     Row(
         modifier = modifier
             .width(460.dp)
-            .background(Color(0xF0101A26), RoundedCornerShape(14.dp))
+            .background(Color(0xF0101A26), RoundedCornerShape(Radius.L))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -279,7 +279,7 @@ internal fun NextEpisodeCard(
             modifier = Modifier
                 .width(150.dp)
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(Radius.L))
                 .background(Surface2),
         ) {
             if (poster != null) {
@@ -306,11 +306,11 @@ internal fun NextEpisodeCard(
             }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Épisode suivant · dans $seconds s", color = TextSecondary, fontSize = 13.sp)
+            Text("Épisode suivant · dans $seconds s", color = TextSecondary, fontSize = TypeSize.Caption)
             Text(
                 label.orEmpty(),
                 color = Color.White,
-                fontSize = 17.sp,
+                fontSize = TypeSize.Title3,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -328,7 +328,7 @@ private fun CardButton(text: String, primary: Boolean, onClick: () -> Unit, modi
     FocusItem(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(Radius.M),
         focusScale = 1.08f,
         idleColor = if (primary) Color(0xFFE8EEF5) else Color(0x33FFFFFF),
         focusedColor = Color.White,
@@ -338,7 +338,7 @@ private fun CardButton(text: String, primary: Boolean, onClick: () -> Unit, modi
             text,
             color = color,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            fontSize = TypeSize.Body,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp),
         )
     }

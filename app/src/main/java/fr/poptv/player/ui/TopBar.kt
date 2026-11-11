@@ -23,9 +23,6 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -170,7 +167,7 @@ private fun ScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 14.dp),
     ) {
-        Text(title, fontSize = if (compact) 24.sp else 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, color = TextPrimary)
+        Text(title, fontSize = TypeSize.Title2, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, color = TextPrimary)
         Spacer(Modifier.weight(1f))
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
@@ -182,8 +179,8 @@ private fun ScreenHeader(
                 placeholder = "Rechercher",
                 modifier = Modifier.width(if (compact) 220.dp else 260.dp).focusRequester(searchFocus),
                 imeAction = ImeAction.Search,
-                shape = RoundedCornerShape(10.dp),
-                leadingIcon = Icons.Filled.Search,
+                shape = RoundedCornerShape(Radius.M),
+                leadingIcon = AppIcons.Search,
             )
         }
     }
@@ -237,8 +234,8 @@ private fun SideRail(
                 RailButton(AppIcons.Library, "Séries", expanded, selected = state.section == Section.SERIES, focusRequester = sectionFocus.takeIf { state.section == Section.SERIES }) { pick(Section.SERIES) }
             }
             Spacer(Modifier.weight(1f))
-            RailButton(Icons.Filled.Search, "Recherche", expanded, selected = false, onClick = onSearch)
-            RailButton(Icons.Filled.Settings, "Réglages", expanded, selected = false, onClick = onSettings)
+            RailButton(AppIcons.Search, "Recherche", expanded, selected = false, onClick = onSearch)
+            RailButton(AppIcons.Settings, "Réglages", expanded, selected = false, onClick = onSettings)
         }
     }
 }
@@ -269,7 +266,7 @@ private fun RailButton(icon: ImageVector, label: String, expanded: Boolean, sele
         ) {
             Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(if (compact) 21.dp else 26.dp))
             if (expanded) {
-                Text(label, color = tint, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                Text(label, color = tint, fontSize = TypeSize.Title3, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
             }
         }
     }

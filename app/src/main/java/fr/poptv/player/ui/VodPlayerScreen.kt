@@ -395,7 +395,7 @@ fun VodPlayerScreen(
                 color = ErrorColor,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color(0xCC000000), RoundedCornerShape(10.dp))
+                    .background(Color(0xCC000000), RoundedCornerShape(Radius.M))
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             )
         }
@@ -427,8 +427,8 @@ fun VodPlayerScreen(
             Text(
                 (if (seekDelta > 0) "+ " else "− ") + seconds + " s",
                 color = Color.White,
-                fontSize = if (LocalCompact.current) 28.sp else 44.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = if (LocalCompact.current) TypeSize.Title2 else TypeSize.Title1,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.Center),
             )
         }
@@ -463,15 +463,15 @@ fun VodPlayerScreen(
                     Text(
                         playback.title,
                         color = Color.White,
-                        fontSize = if (LocalCompact.current) 20.sp else 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = if (LocalCompact.current) TypeSize.Title3 else TypeSize.Title2,
+                        fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-0.6).sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     val sub = if (paused) "En pause" else playback.subtitle
                     if (sub != null) {
-                        Text(sub, color = Color(0xB3FFFFFF), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(sub, color = Color(0xB3FFFFFF), fontSize = TypeSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
@@ -531,11 +531,11 @@ fun VodPlayerScreen(
                             )
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(formatTime(position), color = Color(0xCCFFFFFF), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(formatTime(position), color = Color(0xCCFFFFFF), fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
                             Text(
                                 if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
                                 color = Color(0xCCFFFFFF),
-                                fontSize = 15.sp,
+                                fontSize = TypeSize.Body,
                                 fontWeight = FontWeight.SemiBold,
                             )
                         }
@@ -580,7 +580,7 @@ fun VodPlayerScreen(
                                 Text(
                                     "Toucher : pause  ·  Double toucher : ±10 s",
                                     color = Color(0xB3FFFFFF),
-                                    fontSize = 13.sp,
+                                    fontSize = TypeSize.Caption,
                                 )
                             }
                         }
@@ -660,7 +660,7 @@ private fun PlayerChip(icon: ImageVector, label: String, modifier: Modifier = Mo
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             androidx.compose.material3.Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-            Text(label, color = tint, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label, color = tint, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }

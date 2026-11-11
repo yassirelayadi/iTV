@@ -104,7 +104,7 @@ fun CategoriesScreen(
             ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+        Text(title, fontSize = TypeSize.Title2, fontWeight = FontWeight.SemiBold, color = TextPrimary)
         Text("$visibleCount affichées sur ${categories.size}", color = TextSecondary)
 
         FlowRow(
@@ -117,7 +117,7 @@ fun CategoriesScreen(
                 placeholder = "Filtrer les catégories",
                 modifier = if (LocalCompact.current) Modifier.fillMaxWidth() else Modifier.width(300.dp),
                 imeAction = ImeAction.Search,
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(Radius.M),
             )
             Pill(
                 if (filtering) "Afficher les résultats" else "Tout afficher",
@@ -151,7 +151,7 @@ fun CategoriesScreen(
                     FocusItem(
                         onClick = { onSetHidden(section, listOf(category.id), !isHidden) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(Radius.L),
                         focusScale = 1.02f,
                     ) {
                         Row(
@@ -169,7 +169,7 @@ fun CategoriesScreen(
                             Text(
                                 if (category.id in notLoaded) "—" else "${counts[category.id] ?: 0}",
                                 color = TextSecondary,
-                                fontSize = 15.sp,
+                                fontSize = TypeSize.Body,
                             )
                             Text(
                                 if (isHidden) "Masquée" else "Affichée",
