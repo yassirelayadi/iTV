@@ -270,7 +270,7 @@ fun rememberImage(url: String?, width: Int, height: Int): ImageRequest {
 
 /** Pastille rouge « EN DIRECT » des chaînes. */
 @Composable
-fun LiveBadge(modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.TextUnit = 10.sp) {
+fun LiveBadge(modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.TextUnit = TypeSize.Label) {
     Row(
         modifier = modifier
             .background(Color(0xFFFF3B30), RoundedCornerShape(50))

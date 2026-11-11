@@ -61,16 +61,16 @@ val GlassFocus = Color(0x33FFFFFF)
 val AccentBrush = Brush.linearGradient(listOf(Color(0xFF7FDCFF), Color(0xFF1A98FF), Color(0xFF3D6BFF)))
 
 /**
- * Police de toute l'app : Plus Jakarta Sans (licence OFL). Graisse maximale : Bold, réservée au Titre 1.
+ * Police de toute l'app : Geist (licence OFL). Graisse maximale : Bold, réservée au Titre 1.
  * Light et ExtraBold renvoient vers Regular et Bold pour ne jamais sortir de l'échelle.
  */
 val AppFont = FontFamily(
-    Font(R.font.jakarta_regular, FontWeight.Light),
-    Font(R.font.jakarta_regular, FontWeight.Normal),
-    Font(R.font.jakarta_medium, FontWeight.Medium),
-    Font(R.font.jakarta_semibold, FontWeight.SemiBold),
-    Font(R.font.jakarta_bold, FontWeight.Bold),
-    Font(R.font.jakarta_bold, FontWeight.ExtraBold),
+    Font(R.font.geist_regular, FontWeight.Light),
+    Font(R.font.geist_regular, FontWeight.Normal),
+    Font(R.font.geist_medium, FontWeight.Medium),
+    Font(R.font.geist_semibold, FontWeight.SemiBold),
+    Font(R.font.geist_bold, FontWeight.Bold),
+    Font(R.font.geist_bold, FontWeight.ExtraBold),
 )
 
 /**
@@ -288,20 +288,3 @@ fun Modifier.appear(): Modifier {
     }
 }
 
-/** Échelle de tailles de texte (sp) : tout le texte de l'appli utilise l'une de ces valeurs. */
-object TypeScale {
-    const val Caption = 13
-    const val Body = 15
-    const val BodyLarge = 17
-    const val Title = 20
-    const val Headline = 24
-    const val Display = 28
-    const val Hero = 36
-}
-
-/** Rayons de coin : deux valeurs seulement (éléments et cartes). */
-object Radius {
-    val Small = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-    val Medium = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-    val Large = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-}

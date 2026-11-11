@@ -744,7 +744,7 @@ private fun PosterTile(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(6.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(4.dp))
+                        .background(Color(0x99000000), RoundedCornerShape(Radius.S))
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 )
             }
@@ -780,7 +780,7 @@ private fun PosterTile(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(4.dp))
+                        .background(Color(0x99000000), RoundedCornerShape(Radius.S))
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 )
             }

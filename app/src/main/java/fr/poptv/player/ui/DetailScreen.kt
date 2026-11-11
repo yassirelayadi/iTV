@@ -460,7 +460,7 @@ private fun EpisodeTile(
                     Modifier
                         .align(Alignment.BottomStart)
                         .padding(start = 10.dp, bottom = 10.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(4.dp))
+                        .background(Color(0x99000000), RoundedCornerShape(Radius.S))
                         .padding(horizontal = 9.dp, vertical = 2.dp)
                 } else {
                     Modifier.align(Alignment.Center)

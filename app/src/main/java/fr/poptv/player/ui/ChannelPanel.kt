@@ -184,7 +184,7 @@ fun ChannelPanel(
                                 fontSize = TypeSize.Caption,
                             )
                             if (isSelected) {
-                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Accent))
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(Radius.S)).background(Accent))
                             }
                         }
                     }
@@ -252,7 +252,7 @@ fun ChannelPanel(
                                 }
                             }
                             if (isCurrent) {
-                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Accent))
+                                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(Radius.S)).background(Accent))
                             }
                         }
                     }
