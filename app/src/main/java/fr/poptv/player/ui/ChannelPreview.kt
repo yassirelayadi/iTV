@@ -55,7 +55,7 @@ fun ChannelPreview(streamUrl: String, modifier: Modifier = Modifier) {
             .setBufferDurationsMs(3_000, 10_000, 500, 1_500)
             .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
-            .setMediaSourceFactory(DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent("iTV/0.1")))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent(fr.poptv.player.data.UA)))
             .setLoadControl(loadControl)
             .build()
             .apply {

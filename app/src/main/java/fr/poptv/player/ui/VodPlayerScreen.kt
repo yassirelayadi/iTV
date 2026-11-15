@@ -74,6 +74,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -104,7 +106,7 @@ fun VodPlayerScreen(
     val player = remember {
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent("iTV/0.1"))
+                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent(fr.poptv.player.data.UA))
             )
             .build()
     }
@@ -143,6 +145,8 @@ fun VodPlayerScreen(
         duration > 300_000L && duration - position <= CREDITS_WINDOW_MS
 
     DisposableEffect(player) {
+        var autoRetried = false
+        val errorScope = kotlinx.coroutines.MainScope()
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
@@ -159,13 +163,25 @@ fun VodPlayerScreen(
             }
 
             override fun onPlayerError(e: PlaybackException) {
+                // Une seule connexion autorisée : si le serveur refuse parce que le flux précédent (aperçu, autre
+                // titre) n'est pas encore fermé de son côté, on réessaie une fois tout seul après 3 s.
+                if (e.isConnectionLimit() && !autoRetried) {
+                    autoRetried = true
+                    buffering = true
+                    errorScope.launch {
+                        kotlinx.coroutines.delay(3_000)
+                        player.prepare()
+                    }
+                    return
+                }
                 buffering = false
-                error = "Lecture impossible (${e.errorCodeName}). OK pour réessayer."
+                error = e.friendlyMessage() + " OK pour réessayer."
             }
         }
         player.addListener(listener)
         onDispose {
             player.removeListener(listener)
+            errorScope.cancel()
             // Dernière position mémorisée (sert à « Reprendre »).
             latestOnProgress(playback, player.currentPosition, player.duration.coerceAtLeast(0L))
             player.release()

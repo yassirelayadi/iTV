@@ -92,7 +92,7 @@ fun PlayerScreen(
             .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent("iTV/0.1"))
+                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent(fr.poptv.player.data.UA))
             )
             .setLoadControl(loadControl)
             .build()
@@ -135,7 +135,7 @@ fun PlayerScreen(
                 } else {
                     reconnecting = false
                     buffering = false
-                    error = "Impossible de lire cette chaîne (${e.errorCodeName})."
+                    error = e.friendlyMessage()
                 }
             }
         }
