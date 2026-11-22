@@ -1,5 +1,7 @@
 package fr.poptv.player.ui
 
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.composed
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -92,6 +94,7 @@ fun FocusItem(
             .then(if (idleBrush != null && !focused) Modifier.background(idleBrush) else Modifier.background(color))
             .then(if (focusRing && focused) Modifier.border(2.dp, ringColor, shape) else Modifier)
             .onFocusChanged { focused = it.isFocused }
+            .then(if (onLongClick != null) Modifier.dpadLongPress(onClick, onLongClick) else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         content(focused)
@@ -314,3 +317,42 @@ fun PosterPlaceholder(title: String, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * Appui long avec la télécommande : combinedClickable ne le gère qu'au toucher. OK maintenu 500 ms = appui long,
+ * relâché avant = clic. Fonctionne que la télécommande répète la touche ou non.
+ */
+private fun Modifier.dpadLongPress(onClick: () -> Unit, onLongClick: () -> Unit): Modifier = composed {
+    var downAt by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    var longFired by remember { mutableStateOf(false) }
+    onPreviewKeyEvent { event ->
+        val key = event.nativeKeyEvent.keyCode
+        val isOk = key == android.view.KeyEvent.KEYCODE_DPAD_CENTER || key == android.view.KeyEvent.KEYCODE_ENTER ||
+            key == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER || key == android.view.KeyEvent.KEYCODE_BUTTON_A
+        if (!isOk) return@onPreviewKeyEvent false
+        val now = android.os.SystemClock.uptimeMillis()
+        when (event.nativeKeyEvent.action) {
+            android.view.KeyEvent.ACTION_DOWN -> {
+                if (event.nativeKeyEvent.repeatCount == 0) {
+                    downAt = now
+                    longFired = false
+                } else if (!longFired && now - downAt >= LONG_PRESS_MS) {
+                    longFired = true
+                    onLongClick()
+                }
+                true
+            }
+            android.view.KeyEvent.ACTION_UP -> {
+                if (!longFired) {
+                    if (downAt > 0 && now - downAt >= LONG_PRESS_MS) onLongClick() else onClick()
+                }
+                downAt = 0
+                longFired = false
+                true
+            }
+            else -> false
+        }
+    }
+}
+
+private const val LONG_PRESS_MS = 500L

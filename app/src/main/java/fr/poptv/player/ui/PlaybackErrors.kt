@@ -28,15 +28,15 @@ fun PlaybackException.isAudioOutputBusy(): Boolean =
 fun PlaybackException.friendlyMessage(): String {
     val code = httpCode()
     return when {
-        code == 401 -> "Le serveur refuse l'accès (code 401) : identifiants ou abonnement à vérifier."
-        code in LIMIT_CODES -> "Le serveur refuse une connexion de plus (code $code). Une autre appli ou un autre appareil utilise peut-être ton abonnement : ferme-le, puis réessaie."
-        code == 404 || code == 410 -> "Ce titre n'est plus disponible sur le serveur (code $code)."
-        code != null -> "Le serveur a répondu par une erreur (code $code)."
+        code == 401 -> "Le serveur refuse l'accès : identifiants ou abonnement à vérifier."
+        code in LIMIT_CODES -> "Le serveur refuse une connexion de plus. Une autre appli ou un autre appareil utilise peut-être ton abonnement : ferme-le, puis réessaie."
+        code == 404 || code == 410 -> "Ce titre n'est plus disponible sur le serveur."
+        code != null -> "Le serveur n'a pas pu envoyer ce titre. Réessaie plus tard."
         errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
             errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "Connexion au serveur impossible. Vérifie la connexion internet."
         isAudioOutputBusy() -> "La sortie audio de la TV n'a pas pu s'ouvrir (son Dolby/DTS ou sortie encore occupée). Réessaie, ou choisis une autre piste audio."
         errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
             errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "Format vidéo non pris en charge par cet appareil."
-        else -> "Lecture impossible ($errorCodeName)."
+        else -> "Lecture impossible."
     }
 }

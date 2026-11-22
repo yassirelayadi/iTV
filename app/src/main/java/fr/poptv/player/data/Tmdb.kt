@@ -62,7 +62,7 @@ object TmdbClient {
         return Http.client.newCall(request).execute().use { response ->
             when {
                 response.code == 401 -> error("Clé TMDB refusée. Vérifie qu'elle est correcte.")
-                !response.isSuccessful -> error("TMDB a répondu HTTP ${response.code}")
+                !response.isSuccessful -> error("TMDB est indisponible pour le moment.")
             }
             val body = response.body?.string() ?: error("Réponse vide de TMDB")
             val root = json.parseToJsonElement(body) as? JsonObject ?: error("Réponse TMDB illisible")

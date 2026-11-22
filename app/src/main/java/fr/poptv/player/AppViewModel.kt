@@ -693,12 +693,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun friendly(e: Exception): String = when (e) {
         is UnknownHostException -> "Serveur introuvable. Vérifie l'adresse et ta connexion."
         is SocketTimeoutException -> "Le serveur met trop de temps à répondre."
-        is IOException -> "Erreur réseau : ${e.message ?: "connexion impossible"}"
-        is IllegalStateException -> when {
-            e.message?.contains("HTTP 5") == true -> "Le serveur du fournisseur est indisponible (${e.message?.substringAfter("HTTP ")}). Réessaie dans quelques minutes."
-            else -> e.message ?: "Erreur inconnue"
+        is IOException -> "La connexion au serveur a été interrompue. Réessaie."
+        is IllegalStateException -> {
+            // Messages internes du type « Le serveur a répondu HTTP 403 » : traduits sans code technique.
+            val http = Regex("""HTTP (\d{3})""").find(e.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+            when {
+                http == 401 || http == 403 -> "Identifiants refusés ou abonnement expiré."
+                http == 404 -> "Adresse du serveur incorrecte."
+                http != null && http >= 500 -> "Le serveur du fournisseur est indisponible. Réessaie dans quelques minutes."
+                http != null -> "Le serveur a refusé la demande. Réessaie plus tard."
+                else -> e.message ?: "Une erreur est survenue. Réessaie."
+            }
         }
         is IllegalArgumentException -> "Adresse invalide."
-        else -> e.message ?: "Erreur inconnue"
+        else -> "Une erreur est survenue. Réessaie."
     }
 }

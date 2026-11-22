@@ -564,40 +564,6 @@ fun VodPlayerScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 CircularProgressIndicator()
-                // Pendant un chargement en cours de film : débit réseau mesuré face au débit de la vidéo.
-                var info by remember { mutableStateOf<String?>(null) }
-                LaunchedEffect(Unit) {
-                    var overlayPrev = diag.total.get()
-                    delay(1_000)
-                    while (true) {
-                        val nowTotal = diag.total.get()
-                        val net = (nowTotal - overlayPrev) * 8.0 / 1_000_000 // octets reçus pendant la dernière seconde
-                        overlayPrev = nowTotal
-                        // Débit moyen du film : octets reçus ÷ minutes de film chargées depuis le début (ou le dernier saut).
-                        val loadedMs = player.bufferedPosition - diag.basePositionMs
-                        val film = (player.videoFormat?.bitrate?.takeIf { it > 0 }?.div(1_000_000.0))
-                            ?: if (loadedMs > 10_000 && diag.sinceBase.get() > 0) diag.sinceBase.get() * 8.0 / loadedMs / 1000.0 else null
-                        val ahead = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0) / 1000
-                        info = buildString {
-                            append("Réseau ≈ ${"%.1f".format(net)} Mb/s")
-                            if (film != null) append("  ·  film ≈ ${"%.1f".format(film)} Mb/s")
-                            append("  ·  avance : $ahead s")
-                            append("\nArrêts : ${diag.stalls}  ·  reconnexions : ${(diag.loads - 1).coerceAtLeast(0)}  ·  erreurs : ${diag.errors}")
-                            if (diag.lastError.isNotEmpty()) append(" (${diag.lastError})")
-                            if (film != null && net < film) append("\nLe flux arrive moins vite que le film ne se lit.")
-                        }
-                        delay(1_000)
-                    }
-                }
-                info?.let {
-                    Text(
-                        it,
-                        color = TextSecondary,
-                        fontSize = TypeSize.Caption,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(Radius.M)).padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                }
             }
         }
 
