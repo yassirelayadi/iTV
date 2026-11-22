@@ -15,6 +15,7 @@ class ITvApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         fr.poptv.player.data.CatalogDb.init(this)
+        fr.poptv.player.data.RemoteLog.init(this)
         // Anciens catalogues en JSON : remplacés par la base.
         runCatching {
             cacheDir.resolve("movies.json").delete()

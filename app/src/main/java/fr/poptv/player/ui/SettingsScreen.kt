@@ -144,6 +144,15 @@ fun SettingsScreen(
             )
             SettingRow("Restaurer une sauvegarde", "Remplace les profils et favoris actuels par ceux d'un fichier", onImport)
 
+            var logOn by remember { androidx.compose.runtime.mutableStateOf(fr.poptv.player.data.RemoteLog.enabled) }
+            SettingRow(
+                title = "Journal de diagnostic : " + if (logOn) "activé" else "désactivé",
+                subtitle = "Envoie les incidents de lecture (débit, coupures, erreurs) pour analyse · jamais tes identifiants",
+                onClick = {
+                    logOn = !logOn
+                    fr.poptv.player.data.RemoteLog.setEnabled(settingsContext, logOn)
+                },
+            )
             SettingRow(
                 title = if (state.speedTesting) "Test de débit en cours…" else "Tester le débit",
                 subtitle = state.speedTest ?: "Mesure ta connexion internet et la vitesse du serveur IPTV (environ 20 s)",

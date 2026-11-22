@@ -125,6 +125,9 @@ fun VodPlayerScreen(
 
     var buffering by remember { mutableStateOf(true) }
     val diag = remember { LoadDiag(basePositionMs = playback.startMs) }
+    // Journal de diagnostic : une session par lecture.
+    val session = remember { java.util.UUID.randomUUID().toString().take(8) }
+    fun rlog(event: String, vararg data: Pair<String, Any?>) = fr.poptv.player.data.RemoteLog.log(session, event, *data)
     var paused by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var position by remember { mutableLongStateOf(playback.startMs) }
@@ -171,7 +174,29 @@ fun VodPlayerScreen(
                 bitrateEstimate: Long,
             ) {
                 diag.bytes += totalBytesLoaded
+                diag.windowBytes += totalBytesLoaded
+                diag.windowLoadMs += totalLoadTimeMs
                 if (totalLoadTimeMs > 0) diag.lastRateMbps = totalBytesLoaded * 8.0 / totalLoadTimeMs / 1000.0
+            }
+
+            override fun onLoadCompleted(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            ) {
+                if (mediaLoadData.dataType == androidx.media3.common.C.DATA_TYPE_MEDIA) {
+                    rlog("load_end", "bytes" to loadEventInfo.bytesLoaded, "ms" to loadEventInfo.loadDurationMs, "pos" to player.currentPosition)
+                }
+            }
+
+            override fun onLoadCanceled(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            ) {
+                if (mediaLoadData.dataType == androidx.media3.common.C.DATA_TYPE_MEDIA) {
+                    rlog("load_cancel", "bytes" to loadEventInfo.bytesLoaded, "ms" to loadEventInfo.loadDurationMs, "pos" to player.currentPosition)
+                }
             }
 
             override fun onLoadStarted(
@@ -179,7 +204,10 @@ fun VodPlayerScreen(
                 loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
                 mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
             ) {
-                if (mediaLoadData.dataType == androidx.media3.common.C.DATA_TYPE_MEDIA) diag.loads++
+                if (mediaLoadData.dataType == androidx.media3.common.C.DATA_TYPE_MEDIA) {
+                    diag.loads++
+                    rlog("load_start", "n" to diag.loads, "offset" to loadEventInfo.dataSpec.position, "pos" to player.currentPosition)
+                }
             }
 
             override fun onLoadError(
@@ -191,9 +219,21 @@ fun VodPlayerScreen(
             ) {
                 diag.errors++
                 diag.lastError = (error.cause ?: error).javaClass.simpleName
+                val http = (error as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
+                rlog(
+                    "load_error",
+                    "type" to diag.lastError,
+                    "msg" to (error.cause?.message ?: error.message),
+                    "http" to http,
+                    "bytes" to loadEventInfo.bytesLoaded,
+                    "ms" to loadEventInfo.loadDurationMs,
+                    "canceled" to wasCanceled,
+                    "pos" to player.currentPosition,
+                )
             }
         }
         player.addAnalyticsListener(analytics)
+        rlog("start", "kind" to playback.kind, "ext" to playback.ext, "title" to playback.title, "start_ms" to playback.startMs)
         val listener = object : Player.Listener {
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
@@ -203,8 +243,33 @@ fun VodPlayerScreen(
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_BUFFERING && wasReady) diag.stalls++
-                if (playbackState == Player.STATE_READY) wasReady = true
+                if (playbackState == Player.STATE_BUFFERING && wasReady) {
+                    diag.stalls++
+                    diag.stallAt = android.os.SystemClock.elapsedRealtime()
+                    rlog(
+                        "stall",
+                        "n" to diag.stalls,
+                        "pos" to player.currentPosition,
+                        "ahead_ms" to (player.bufferedPosition - player.currentPosition),
+                        "rate_mbps" to diag.lastRateMbps,
+                        "loads" to diag.loads,
+                        "errors" to diag.errors,
+                    )
+                }
+                if (playbackState == Player.STATE_READY) {
+                    if (diag.stallAt > 0) {
+                        rlog("resume", "stall_ms" to (android.os.SystemClock.elapsedRealtime() - diag.stallAt), "pos" to player.currentPosition)
+                        diag.stallAt = 0
+                    } else if (!wasReady) {
+                        rlog(
+                            "ready",
+                            "video" to player.videoFormat?.let { "${it.sampleMimeType} ${it.width}x${it.height} ${it.bitrate}" },
+                            "audio" to player.audioFormat?.let { "${it.sampleMimeType} ${it.channelCount}ch ${it.bitrate}" },
+                            "duration_ms" to player.duration,
+                        )
+                    }
+                    wasReady = true
+                }
                 buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) error = null
                 if (playbackState == Player.STATE_ENDED) latestOnEnded()
@@ -219,6 +284,7 @@ fun VodPlayerScreen(
             }
 
             override fun onPlayerError(e: PlaybackException) {
+                rlog("player_error", "code" to e.errorCodeName, "http" to e.httpCode(), "msg" to (e.cause?.message ?: e.message), "pos" to player.currentPosition)
                 // Une seule connexion autorisée : si le serveur refuse parce que le flux précédent (aperçu, autre
                 // titre) n'est pas encore fermé de son côté, on réessaie une fois tout seul après 3 s.
                 // Sortie audio pas encore libérée par la lecture précédente (fréquent en relançant un film,
@@ -248,6 +314,8 @@ fun VodPlayerScreen(
         player.addListener(listener)
         onDispose {
             player.removeAnalyticsListener(analytics)
+            rlog("stop", "pos" to player.currentPosition, "stalls" to diag.stalls, "loads" to diag.loads, "errors" to diag.errors, "bytes" to diag.bytes)
+            fr.poptv.player.data.RemoteLog.flushSoon()
             player.removeListener(listener)
             errorScope.cancel()
             // Dernière position mémorisée (sert à « Reprendre »).
@@ -273,6 +341,17 @@ fun VodPlayerScreen(
             if (ticks >= 20) {
                 ticks = 0
                 latestOnProgress(playback, position, duration)
+                rlog(
+                    "tick",
+                    "pos" to position,
+                    "ahead_ms" to (player.bufferedPosition - player.currentPosition),
+                    "net_mbps" to if (diag.windowLoadMs > 0) diag.windowBytes * 8.0 / diag.windowLoadMs / 1000.0 else null,
+                    "recv_mb_10s" to diag.windowBytes / 1_000_000.0,
+                    "state" to player.playbackState,
+                    "playing" to player.isPlaying,
+                )
+                diag.windowBytes = 0
+                diag.windowLoadMs = 0
             }
         }
     }
@@ -794,4 +873,7 @@ private class LoadDiag(var basePositionMs: Long) {
     var errors = 0
     var stalls = 0
     var lastError = ""
+    var windowBytes = 0L
+    var windowLoadMs = 0L
+    var stallAt = 0L
 }
