@@ -147,7 +147,7 @@ fun SettingsScreen(
             var logOn by remember { androidx.compose.runtime.mutableStateOf(fr.poptv.player.data.RemoteLog.enabled) }
             SettingRow(
                 title = "Journal de diagnostic : " + if (logOn) "activé" else "désactivé",
-                subtitle = "Envoie les incidents de lecture (débit, coupures, erreurs) pour analyse · jamais tes identifiants",
+                subtitle = "Code de cette TV : ${fr.poptv.player.data.RemoteLog.installId} · envoie les incidents de lecture (débit, coupures, erreurs, titre du film) pour analyse, jamais tes identifiants",
                 onClick = {
                     logOn = !logOn
                     fr.poptv.player.data.RemoteLog.setEnabled(settingsContext, logOn)

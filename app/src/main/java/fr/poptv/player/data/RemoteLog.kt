@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /**
  * Journal de diagnostic envoyé à une base Supabase (table « logs », ajout seulement : l'appli ne peut rien y lire).
  * Il ne contient jamais l'identifiant ni le mot de passe IPTV : les adresses sont retirées des messages.
- * Désactivable dans les réglages.
+ * Désactivé par défaut : chaque personne l'active elle-même dans les réglages (l'appli est installée sur plusieurs TV).
  */
 object RemoteLog {
     private const val ENDPOINT = "https://xosqsyufujwjduxhgnpk.supabase.co/rest/v1/logs"
@@ -31,15 +31,23 @@ object RemoteLog {
     private var started = false
     private var device = ""
     private var version = 0
-    @Volatile var enabled = true
+    @Volatile var enabled = false
+        private set
+
+    /** Identifiant anonyme de cette installation (6 caractères), pour distinguer les TV dans le journal. */
+    var installId = ""
         private set
 
     fun init(context: Context) {
         if (started) return
         started = true
         val app = context.applicationContext
-        enabled = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_KEY, true)
-        device = "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}".take(120)
+        val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        enabled = prefs.getBoolean(PREF_KEY, false)
+        installId = prefs.getString("install_id", null) ?: java.util.UUID.randomUUID().toString().take(6).also {
+            prefs.edit().putString("install_id", it).apply()
+        }
+        device = "$installId · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}".take(120)
         version = runCatching { Updater.installedCode(app).toInt() }.getOrDefault(0)
         scope.launch {
             while (true) {
