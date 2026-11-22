@@ -104,19 +104,26 @@ fun VodPlayerScreen(
     val latestOnNext by rememberUpdatedState(onNext)
 
     // Mesure du débit réseau, affichée pendant les chargements pour savoir si le flux arrive assez vite.
+    val diag = remember { LoadDiag(basePositionMs = playback.startMs) }
     val bandwidthMeter = remember { androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build() }
     val player = remember {
         // Mémoire tampon : 2 min d'avance, plafonnée à 160 Mo. Minimum = maximum : le lecteur lit le flux en continu
         // au lieu de s'arrêter une minute puis de reprendre. Sinon la connexion reste inactive pendant ces pauses,
         // certains serveurs IPTV la ferment, et il faut se reconnecter (chargement) toutes les minutes environ.
         val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(120_000, 120_000, 2_500, 8_000)
+            .setBufferDurationsMs(120_000, 120_000, 5_000, 12_000)
             .setTargetBufferBytes(160 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent(fr.poptv.player.data.UA))
+                DefaultMediaSourceFactory(
+                    OkHttpDataSource.Factory(Http.client)
+                        .setUserAgent(fr.poptv.player.data.UA)
+                        // Compte chaque octet reçu : débit réel pendant la lecture (le mesureur d'ExoPlayer ne se met
+                        // à jour qu'en fin de téléchargement, jamais pendant le long téléchargement d'un film).
+                        .setTransferListener(diag.counter),
+                )
             )
             .setLoadControl(loadControl)
             .setBandwidthMeter(bandwidthMeter)
@@ -124,7 +131,6 @@ fun VodPlayerScreen(
     }
 
     var buffering by remember { mutableStateOf(true) }
-    val diag = remember { LoadDiag(basePositionMs = playback.startMs) }
     // Journal de diagnostic : une session par lecture.
     val session = remember { java.util.UUID.randomUUID().toString().take(8) }
     fun rlog(event: String, vararg data: Pair<String, Any?>) = fr.poptv.player.data.RemoteLog.log(session, event, *data)
@@ -173,10 +179,6 @@ fun VodPlayerScreen(
                 totalBytesLoaded: Long,
                 bitrateEstimate: Long,
             ) {
-                diag.bytes += totalBytesLoaded
-                diag.windowBytes += totalBytesLoaded
-                diag.windowLoadMs += totalLoadTimeMs
-                if (totalLoadTimeMs > 0) diag.lastRateMbps = totalBytesLoaded * 8.0 / totalLoadTimeMs / 1000.0
             }
 
             override fun onLoadCompleted(
@@ -237,7 +239,7 @@ fun VodPlayerScreen(
         val listener = object : Player.Listener {
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
-                    diag.bytes = 0
+                    diag.sinceBase.set(0)
                     diag.basePositionMs = newPosition.positionMs
                 }
             }
@@ -314,7 +316,7 @@ fun VodPlayerScreen(
         player.addListener(listener)
         onDispose {
             player.removeAnalyticsListener(analytics)
-            rlog("stop", "pos" to player.currentPosition, "stalls" to diag.stalls, "loads" to diag.loads, "errors" to diag.errors, "bytes" to diag.bytes)
+            rlog("stop", "pos" to player.currentPosition, "stalls" to diag.stalls, "loads" to diag.loads, "errors" to diag.errors, "bytes" to diag.total.get())
             fr.poptv.player.data.RemoteLog.flushSoon()
             player.removeListener(listener)
             errorScope.cancel()
@@ -340,18 +342,25 @@ fun VodPlayerScreen(
             ticks++
             if (ticks >= 20) {
                 ticks = 0
+                val nowNs = System.nanoTime()
+                val totalNow = diag.total.get()
+                val tickBytes = totalNow - diag.tickTotal
+                val seconds = (nowNs - diag.tickNs) / 1e9
+                fun tickRate() = if (diag.tickNs > 0 && seconds > 0) tickBytes * 8.0 / seconds / 1_000_000 else null
+                tickRate()?.let { diag.lastRateMbps = it }
                 latestOnProgress(playback, position, duration)
                 rlog(
                     "tick",
                     "pos" to position,
                     "ahead_ms" to (player.bufferedPosition - player.currentPosition),
-                    "net_mbps" to if (diag.windowLoadMs > 0) diag.windowBytes * 8.0 / diag.windowLoadMs / 1000.0 else null,
-                    "recv_mb_10s" to diag.windowBytes / 1_000_000.0,
+                    "net_mbps" to tickRate(),
+                    "recv_mb_10s" to tickBytes / 1_000_000.0,
                     "state" to player.playbackState,
                     "playing" to player.isPlaying,
                 )
-                diag.windowBytes = 0
-                diag.windowLoadMs = 0
+                diag.tickNs = nowNs
+                diag.tickTotal = totalNow
+
             }
         }
     }
@@ -558,13 +567,16 @@ fun VodPlayerScreen(
                 // Pendant un chargement en cours de film : débit réseau mesuré face au débit de la vidéo.
                 var info by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(Unit) {
-                    delay(1_500)
+                    var overlayPrev = diag.total.get()
+                    delay(1_000)
                     while (true) {
-                        val net = diag.lastRateMbps.takeIf { it > 0 } ?: (bandwidthMeter.bitrateEstimate / 1_000_000.0)
+                        val nowTotal = diag.total.get()
+                        val net = (nowTotal - overlayPrev) * 8.0 / 1_000_000 // octets reçus pendant la dernière seconde
+                        overlayPrev = nowTotal
                         // Débit moyen du film : octets reçus ÷ minutes de film chargées depuis le début (ou le dernier saut).
                         val loadedMs = player.bufferedPosition - diag.basePositionMs
                         val film = (player.videoFormat?.bitrate?.takeIf { it > 0 }?.div(1_000_000.0))
-                            ?: if (loadedMs > 10_000 && diag.bytes > 0) diag.bytes * 8.0 / loadedMs / 1000.0 else null
+                            ?: if (loadedMs > 10_000 && diag.sinceBase.get() > 0) diag.sinceBase.get() * 8.0 / loadedMs / 1000.0 else null
                         val ahead = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0) / 1000
                         info = buildString {
                             append("Réseau ≈ ${"%.1f".format(net)} Mb/s")
@@ -867,13 +879,25 @@ private fun PlayerChip(icon: ImageVector, label: String, modifier: Modifier = Mo
 
 /** Compteurs du diagnostic de chargement (mis à jour par le lecteur, lus par l'écran de chargement). */
 private class LoadDiag(var basePositionMs: Long) {
-    var bytes = 0L
+    /** Octets reçus depuis le début de la lecture, et depuis le dernier saut (pour le débit moyen du film). */
+    val total = java.util.concurrent.atomic.AtomicLong()
+    val sinceBase = java.util.concurrent.atomic.AtomicLong()
+    var tickNs = 0L
+    var tickTotal = 0L
     var lastRateMbps = 0.0
     var loads = 0
     var errors = 0
     var stalls = 0
     var lastError = ""
-    var windowBytes = 0L
-    var windowLoadMs = 0L
     var stallAt = 0L
+
+    val counter = object : androidx.media3.datasource.TransferListener {
+        override fun onTransferInitializing(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) {}
+        override fun onTransferStart(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) {}
+        override fun onBytesTransferred(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
+            total.addAndGet(bytesTransferred.toLong())
+            sinceBase.addAndGet(bytesTransferred.toLong())
+        }
+        override fun onTransferEnd(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) {}
+    }
 }
