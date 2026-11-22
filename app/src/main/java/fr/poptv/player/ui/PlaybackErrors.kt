@@ -19,6 +19,11 @@ private val LIMIT_CODES = setOf(403, 429, 456, 458, 503, 509)
 /** Erreur qu'un nouvel essai quelques secondes plus tard a des chances de régler (flux précédent pas encore fermé). */
 fun PlaybackException.isConnectionLimit(): Boolean = httpCode() in LIMIT_CODES
 
+/** La sortie audio n'a pas pu s'ouvrir : souvent occupée un court instant par la lecture précédente. */
+fun PlaybackException.isAudioOutputBusy(): Boolean =
+    errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+        errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+
 /** Message en français, compréhensible, pour une erreur de lecture. */
 fun PlaybackException.friendlyMessage(): String {
     val code = httpCode()
@@ -29,6 +34,7 @@ fun PlaybackException.friendlyMessage(): String {
         code != null -> "Le serveur a répondu par une erreur (code $code)."
         errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
             errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "Connexion au serveur impossible. Vérifie la connexion internet."
+        isAudioOutputBusy() -> "La sortie audio de la TV n'a pas pu s'ouvrir (son Dolby/DTS ou sortie encore occupée). Réessaie, ou choisis une autre piste audio."
         errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
             errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "Format vidéo non pris en charge par cet appareil."
         else -> "Lecture impossible ($errorCodeName)."

@@ -157,6 +157,7 @@ fun VodPlayerScreen(
 
     DisposableEffect(player) {
         var autoRetried = false
+        var audioRetries = 0
         val errorScope = kotlinx.coroutines.MainScope()
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -176,6 +177,17 @@ fun VodPlayerScreen(
             override fun onPlayerError(e: PlaybackException) {
                 // Une seule connexion autorisée : si le serveur refuse parce que le flux précédent (aperçu, autre
                 // titre) n'est pas encore fermé de son côté, on réessaie une fois tout seul après 3 s.
+                // Sortie audio pas encore libérée par la lecture précédente (fréquent en relançant un film,
+                // surtout avec un son Dolby/DTS envoyé tel quel à la TV ou à la barre de son) : on réessaie seul.
+                if (e.isAudioOutputBusy() && audioRetries < 3) {
+                    audioRetries++
+                    buffering = true
+                    errorScope.launch {
+                        kotlinx.coroutines.delay(1_000L * audioRetries)
+                        player.prepare()
+                    }
+                    return
+                }
                 if (e.isConnectionLimit() && !autoRetried) {
                     autoRetried = true
                     buffering = true
