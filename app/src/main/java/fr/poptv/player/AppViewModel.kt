@@ -494,7 +494,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             fun show(text: String) = _state.update { it.copy(speedTest = text, speedTesting = true) }
             fun mbps(v: Double?) = v?.let { "%.1f Mb/s".format(it) } ?: "échec"
             show("Test de la connexion internet… (8 s)")
-            val internet = SpeedTest.measure(SpeedTest.INTERNET_URL)
+            val internet = SpeedTest.internet()
             show("Internet : ${mbps(internet)} · test du serveur IPTV… (8 s)")
             val creds = credentials
             val sample = creds?.let {

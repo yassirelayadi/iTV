@@ -106,10 +106,11 @@ fun VodPlayerScreen(
     // Mesure du débit réseau, affichée pendant les chargements pour savoir si le flux arrive assez vite.
     val bandwidthMeter = remember { androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build() }
     val player = remember {
-        // Mémoire tampon plus large que celle par défaut (50 s) : jusqu'à 2 min d'avance, plafonnée à 160 Mo,
-        // pour absorber les ralentissements du serveur au lieu de s'arrêter à chaque creux.
+        // Mémoire tampon : 2 min d'avance, plafonnée à 160 Mo. Minimum = maximum : le lecteur lit le flux en continu
+        // au lieu de s'arrêter une minute puis de reprendre. Sinon la connexion reste inactive pendant ces pauses,
+        // certains serveurs IPTV la ferment, et il faut se reconnecter (chargement) toutes les minutes environ.
         val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30_000, 120_000, 2_500, 8_000)
+            .setBufferDurationsMs(120_000, 120_000, 2_500, 8_000)
             .setTargetBufferBytes(160 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
