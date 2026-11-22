@@ -103,11 +103,22 @@ fun VodPlayerScreen(
     val latestOnEnded by rememberUpdatedState(onEnded)
     val latestOnNext by rememberUpdatedState(onNext)
 
+    // Mesure du débit réseau, affichée pendant les chargements pour savoir si le flux arrive assez vite.
+    val bandwidthMeter = remember { androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build() }
     val player = remember {
+        // Mémoire tampon plus large que celle par défaut (50 s) : jusqu'à 2 min d'avance, plafonnée à 160 Mo,
+        // pour absorber les ralentissements du serveur au lieu de s'arrêter à chaque creux.
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30_000, 120_000, 2_500, 8_000)
+            .setTargetBufferBytes(160 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(OkHttpDataSource.Factory(Http.client).setUserAgent(fr.poptv.player.data.UA))
             )
+            .setLoadControl(loadControl)
+            .setBandwidthMeter(bandwidthMeter)
             .build()
     }
 
@@ -402,7 +413,37 @@ fun VodPlayerScreen(
         )
 
         if (buffering && error == null) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                CircularProgressIndicator()
+                // Pendant un chargement en cours de film : débit réseau mesuré face au débit de la vidéo.
+                var info by remember { mutableStateOf<String?>(null) }
+                LaunchedEffect(Unit) {
+                    delay(1_500)
+                    while (true) {
+                        val net = bandwidthMeter.bitrateEstimate
+                        val video = player.videoFormat?.bitrate?.takeIf { it > 0 }
+                        info = if (net <= 0) null else buildString {
+                            append("Réseau ≈ ${"%.1f".format(net / 1_000_000.0)} Mb/s")
+                            if (video != null) append("  ·  vidéo ≈ ${"%.1f".format(video / 1_000_000.0)} Mb/s")
+                            if (video != null && net < video) append("\nLe flux arrive moins vite que la vidéo ne se lit.")
+                        }
+                        delay(1_000)
+                    }
+                }
+                info?.let {
+                    Text(
+                        it,
+                        color = TextSecondary,
+                        fontSize = TypeSize.Caption,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(Radius.M)).padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
         }
 
         error?.let {
