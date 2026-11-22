@@ -1,5 +1,7 @@
 package fr.poptv.player.ui
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
