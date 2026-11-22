@@ -56,7 +56,12 @@ object RemoteLog {
     }
 
     /** Retire toute adresse (elles contiennent l'identifiant et le mot de passe IPTV). */
-    fun clean(text: String?): String = (text ?: "").replace(Regex("""\w+://\S+"""), "<adresse>").take(300)
+    fun clean(text: String?): String = (text ?: "")
+        .replace(Regex("""\w+://\S+"""), "<adresse>")
+        // Noms de serveur (ex. « Unable to resolve host "serveur.com" ») et adresses IP : le fournisseur n'apparaît pas.
+        .replace(Regex("""\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b"""), "<serveur>")
+        .replace(Regex("""\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b"""), "<ip>")
+        .take(300)
 
     fun log(session: String, event: String, vararg data: Pair<String, Any?>) {
         if (!enabled || !started) return
