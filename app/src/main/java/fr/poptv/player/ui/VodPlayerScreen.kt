@@ -124,6 +124,7 @@ fun VodPlayerScreen(
     }
 
     var buffering by remember { mutableStateOf(true) }
+    val diag = remember { LoadDiag(basePositionMs = playback.startMs) }
     var paused by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var position by remember { mutableLongStateOf(playback.startMs) }
@@ -160,8 +161,50 @@ fun VodPlayerScreen(
         var autoRetried = false
         var audioRetries = 0
         val errorScope = kotlinx.coroutines.MainScope()
+        var wasReady = false
+        // Diagnostic de chargement : ce que le réseau a vraiment livré, et combien de fois il a fallu se reconnecter.
+        val analytics = object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+            override fun onBandwidthEstimate(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                totalLoadTimeMs: Int,
+                totalBytesLoaded: Long,
+                bitrateEstimate: Long,
+            ) {
+                diag.bytes += totalBytesLoaded
+                if (totalLoadTimeMs > 0) diag.lastRateMbps = totalBytesLoaded * 8.0 / totalLoadTimeMs / 1000.0
+            }
+
+            override fun onLoadStarted(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            ) {
+                if (mediaLoadData.dataType == androidx.media3.common.C.DATA_TYPE_MEDIA) diag.loads++
+            }
+
+            override fun onLoadError(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+                error: java.io.IOException,
+                wasCanceled: Boolean,
+            ) {
+                diag.errors++
+                diag.lastError = (error.cause ?: error).javaClass.simpleName
+            }
+        }
+        player.addAnalyticsListener(analytics)
         val listener = object : Player.Listener {
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    diag.bytes = 0
+                    diag.basePositionMs = newPosition.positionMs
+                }
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_BUFFERING && wasReady) diag.stalls++
+                if (playbackState == Player.STATE_READY) wasReady = true
                 buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) error = null
                 if (playbackState == Player.STATE_ENDED) latestOnEnded()
@@ -204,6 +247,7 @@ fun VodPlayerScreen(
         }
         player.addListener(listener)
         onDispose {
+            player.removeAnalyticsListener(analytics)
             player.removeListener(listener)
             errorScope.cancel()
             // Dernière position mémorisée (sert à « Reprendre »).
@@ -437,12 +481,19 @@ fun VodPlayerScreen(
                 LaunchedEffect(Unit) {
                     delay(1_500)
                     while (true) {
-                        val net = bandwidthMeter.bitrateEstimate
-                        val video = player.videoFormat?.bitrate?.takeIf { it > 0 }
-                        info = if (net <= 0) null else buildString {
-                            append("Réseau ≈ ${"%.1f".format(net / 1_000_000.0)} Mb/s")
-                            if (video != null) append("  ·  vidéo ≈ ${"%.1f".format(video / 1_000_000.0)} Mb/s")
-                            if (video != null && net < video) append("\nLe flux arrive moins vite que la vidéo ne se lit.")
+                        val net = diag.lastRateMbps.takeIf { it > 0 } ?: (bandwidthMeter.bitrateEstimate / 1_000_000.0)
+                        // Débit moyen du film : octets reçus ÷ minutes de film chargées depuis le début (ou le dernier saut).
+                        val loadedMs = player.bufferedPosition - diag.basePositionMs
+                        val film = (player.videoFormat?.bitrate?.takeIf { it > 0 }?.div(1_000_000.0))
+                            ?: if (loadedMs > 10_000 && diag.bytes > 0) diag.bytes * 8.0 / loadedMs / 1000.0 else null
+                        val ahead = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0) / 1000
+                        info = buildString {
+                            append("Réseau ≈ ${"%.1f".format(net)} Mb/s")
+                            if (film != null) append("  ·  film ≈ ${"%.1f".format(film)} Mb/s")
+                            append("  ·  avance : $ahead s")
+                            append("\nArrêts : ${diag.stalls}  ·  reconnexions : ${(diag.loads - 1).coerceAtLeast(0)}  ·  erreurs : ${diag.errors}")
+                            if (diag.lastError.isNotEmpty()) append(" (${diag.lastError})")
+                            if (film != null && net < film) append("\nLe flux arrive moins vite que le film ne se lit.")
                         }
                         delay(1_000)
                     }
@@ -733,4 +784,14 @@ private fun PlayerChip(icon: ImageVector, label: String, modifier: Modifier = Mo
             Text(label, color = tint, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
+}
+
+/** Compteurs du diagnostic de chargement (mis à jour par le lecteur, lus par l'écran de chargement). */
+private class LoadDiag(var basePositionMs: Long) {
+    var bytes = 0L
+    var lastRateMbps = 0.0
+    var loads = 0
+    var errors = 0
+    var stalls = 0
+    var lastError = ""
 }
