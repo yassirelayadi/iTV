@@ -25,6 +25,9 @@ import fr.poptv.player.data.TmdbMatcher
 import fr.poptv.player.data.TmdbPicks
 import fr.poptv.player.data.TmdbTrends
 import fr.poptv.player.data.Store
+import fr.poptv.player.data.SpeedTest
+import fr.poptv.player.data.CatalogDb
+import fr.poptv.player.data.XtreamClient
 import fr.poptv.player.data.VodCatalog
 import fr.poptv.player.data.CatalogDb
 import fr.poptv.player.data.VodItem
@@ -124,6 +127,8 @@ data class UiState(
     val activeProfile: String = fr.poptv.player.data.DEFAULT_PROFILE,
     val profilePickerOpen: Boolean = false,
     val backupMessage: String? = null,
+    val speedTest: String? = null,
+    val speedTesting: Boolean = false,
 )
 
 private fun VodCatalog.without(hidden: Set<String>): VodCatalog =
@@ -480,6 +485,48 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteProfile(id: String) {
         viewModelScope.launch { store.deleteProfile(id) }
+    }
+
+    // ---- Test de débit ----
+
+    /** Mesure la connexion internet, puis le serveur IPTV (sur un film du catalogue), et conclut. */
+    fun runSpeedTest() {
+        if (_state.value.speedTesting) return
+        viewModelScope.launch {
+            fun show(text: String) = _state.update { it.copy(speedTest = text, speedTesting = true) }
+            fun mbps(v: Double?) = v?.let { "%.1f Mb/s".format(it) } ?: "échec"
+            show("Test de la connexion internet… (8 s)")
+            val internet = SpeedTest.measure(SpeedTest.INTERNET_URL)
+            show("Internet : ${mbps(internet)} · test du serveur IPTV… (8 s)")
+            val creds = credentials
+            val sample = creds?.let {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        CatalogDb.recent(Section.MOVIES, emptySet(), 1).firstOrNull()
+                            ?: CatalogDb.top(Section.MOVIES, emptySet(), 1).firstOrNull()
+                    }.getOrNull()
+                }
+            }
+            val server = if (creds != null && sample != null) {
+                SpeedTest.measure(sample.url ?: XtreamClient.movieUrl(creds, sample))
+            } else {
+                null
+            }
+            val verdict = when {
+                internet == null -> "Test internet impossible."
+                internet < 10 -> "Ta connexion internet est lente : rapproche la TV de la box ou branche-la en Ethernet."
+                server == null -> "Serveur IPTV non testé (aucun film disponible ou serveur injoignable)."
+                server < 5 -> "Ta connexion va bien, mais le serveur IPTV envoie lentement : le problème vient de lui."
+                server < 15 -> "Suffisant pour la HD ; la 4K risque de couper."
+                else -> "Débit suffisant, même pour la 4K."
+            }
+            _state.update {
+                it.copy(
+                    speedTest = "Internet : ${mbps(internet)} · serveur IPTV : ${mbps(server)}\n$verdict",
+                    speedTesting = false,
+                )
+            }
+        }
     }
 
     // ---- Sauvegarde et restauration ----

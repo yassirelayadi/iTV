@@ -201,6 +201,7 @@ private fun App(viewModel: AppViewModel) {
             onTmdb = viewModel::openTmdb,
             onLogout = viewModel::logout,
             onProfiles = viewModel::openProfiles,
+            onSpeedTest = viewModel::runSpeedTest,
             onExport = { withAccount ->
                 viewModel.exportBackup(withAccount) { raw ->
                     pendingExport = raw

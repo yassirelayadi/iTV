@@ -51,6 +51,7 @@ fun SettingsScreen(
     onProfiles: () -> Unit,
     onExport: (includeAccount: Boolean) -> Unit,
     onImport: () -> Unit,
+    onSpeedTest: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -143,6 +144,11 @@ fun SettingsScreen(
             )
             SettingRow("Restaurer une sauvegarde", "Remplace les profils et favoris actuels par ceux d'un fichier", onImport)
 
+            SettingRow(
+                title = if (state.speedTesting) "Test de débit en cours…" else "Tester le débit",
+                subtitle = state.speedTest ?: "Mesure ta connexion internet et la vitesse du serveur IPTV (environ 20 s)",
+                onClick = onSpeedTest,
+            )
             var updateText by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
             var updateBusy by remember { androidx.compose.runtime.mutableStateOf(false) }
             val updateScope = androidx.compose.runtime.rememberCoroutineScope()
