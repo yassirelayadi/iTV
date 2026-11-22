@@ -625,6 +625,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun playMovie(fromStart: Boolean) = vod.playMovie(fromStart)
     fun playEpisode(episode: Episode, siblings: List<Episode>, fromStart: Boolean = false) = vod.playEpisode(episode, siblings, fromStart)
     fun playResume(entry: ResumeEntry) = vod.playResume(entry)
+
+    fun resumeAction(entry: ResumeEntry, action: fr.poptv.player.ui.ResumeAction) = when (action) {
+        fr.poptv.player.ui.ResumeAction.Remove -> vod.removeResume(entry)
+        fr.poptv.player.ui.ResumeAction.Watched -> vod.markResumeWatched(entry)
+        fr.poptv.player.ui.ResumeAction.Restart -> vod.playResume(entry.copy(positionMs = 0))
+    }
     fun onVodEnded() = vod.onVodEnded()
     fun stopVod() = vod.stopVod()
     fun saveProgress(playback: VodPlayback, positionMs: Long, durationMs: Long) = vod.saveProgress(playback, positionMs, durationMs)

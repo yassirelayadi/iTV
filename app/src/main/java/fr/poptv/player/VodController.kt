@@ -230,6 +230,59 @@ class VodController(
         return true
     }
 
+    /** Entrées de « Reprendre » regroupées avec celle-ci : toute la série pour un épisode, le film seul sinon. */
+    private fun sameGroup(entry: ResumeEntry): (ResumeEntry) -> Boolean {
+        if (entry.kind != "episode") return { it.key == entry.key }
+        val series = entry.title.substringBeforeLast(" · ", entry.title)
+        return { it.kind == "episode" && it.title.substringBeforeLast(" · ", it.title) == series }
+    }
+
+    /** Retire le titre (ou toute la série) de « Reprendre ». */
+    fun removeResume(entry: ResumeEntry) {
+        val inGroup = sameGroup(entry)
+        scope.launch { store.editResume { list -> list.filterNot(inGroup) } }
+    }
+
+    /** Marque comme vu ; pour une série, l'épisode suivant prend la place dans « Reprendre ». */
+    fun markResumeWatched(entry: ResumeEntry) {
+        val creds = credentials()
+        val inGroup = sameGroup(entry)
+        scope.launch {
+            store.markWatched(entry.key)
+            var next: ResumeEntry? = null
+            if (entry.kind == "episode" && creds != null) {
+                val seriesName = entry.title.substringBeforeLast(" · ", "")
+                val item = CatalogDb.byName(Section.SERIES, seriesName)
+                if (item != null) {
+                    val seasons = try {
+                        if (creds.type == "xtream") repo.seriesInfo(creds, item.id).second
+                        else M3uClassifier.seasons(m3uEpisodes[item.id].orEmpty())
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                    val id = entry.key.substringAfter(':')
+                    val current = seasons.flatMap { it.episodes }.firstOrNull { it.id == id }
+                    if (current != null) {
+                        val list = orderedEpisodes(seasons, current)
+                        list.getOrNull(list.indexOfFirst { it.id == id } + 1)?.let { ep ->
+                            next = ResumeEntry(
+                                key = "e:${ep.id}",
+                                kind = "episode",
+                                title = "$seriesName · S${ep.season} E${ep.number}",
+                                ext = ep.ext,
+                                poster = entry.poster ?: item.poster,
+                                updatedAt = System.currentTimeMillis(),
+                            )
+                        }
+                    }
+                }
+            }
+            store.editResume { list -> listOfNotNull(next) + list.filterNot(inGroup) }
+        }
+    }
+
     fun playResume(entry: ResumeEntry) {
         val creds = credentials() ?: return
         if (entry.kind == "episode" && resumeEpisode(entry, creds)) return

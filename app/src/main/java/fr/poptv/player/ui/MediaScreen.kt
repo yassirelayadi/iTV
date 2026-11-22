@@ -166,7 +166,20 @@ fun MediaScreen(
     onToggleFavorite: (String) -> Unit,
     onRetry: () -> Unit,
     listState: LazyListState,
+    onResumeAction: (ResumeEntry, ResumeAction) -> Unit = { _, _ -> },
 ) {
+    // Menu de l'appui long sur une vignette de « Reprendre ».
+    var resumeMenu by remember { mutableStateOf<ResumeEntry?>(null) }
+    resumeMenu?.let { entry ->
+        ResumeMenu(
+            entry = entry,
+            onAction = { action ->
+                resumeMenu = null
+                onResumeAction(entry, action)
+            },
+            onDismiss = { resumeMenu = null },
+        )
+    }
     val isMovies = state.section == Section.MOVIES
     val catalog = if (isMovies) state.movies else state.series
     val loading = if (isMovies) state.moviesLoading else state.seriesLoading
@@ -359,7 +372,7 @@ fun MediaScreen(
                 }
                 if (resume.isNotEmpty()) {
                     item(key = "resume") {
-                        ResumeRow(resume, onResume, onOtherFocus)
+                        ResumeRow(resume, onResume, onOtherFocus, onLongPress = { resumeMenu = it })
                     }
                 }
                 if (favItems.isNotEmpty()) {
@@ -580,6 +593,7 @@ private fun ResumeRow(
     entries: List<ResumeEntry>,
     onResume: (ResumeEntry) -> Unit,
     onFocusInfo: (HeroInfo) -> Unit,
+    onLongPress: (ResumeEntry) -> Unit,
 ) {
     // Une seule vignette par série (l'épisode le plus récent), avec l'affiche de la série.
     val shown = remember(entries) {
@@ -602,6 +616,7 @@ private fun ResumeRow(
                     poster = entry.poster,
                     progress = if (entry.durationMs > 0) entry.positionMs.toFloat() / entry.durationMs else null,
                     onClick = { onResume(entry) },
+                    onLongClick = { onLongPress(entry) },
                     onFocus = {
                         val at = if (entry.positionMs > 0) "Reprendre à ${formatTime(entry.positionMs)}" else "Épisode suivant"
                         onFocusInfo(HeroInfo(name, if (episodeLabel.isNotEmpty()) "$episodeLabel · $at" else at, null, entry.poster, "REPRENDRE", resume = entry))
@@ -685,6 +700,7 @@ private fun PosterTile(
     title: String,
     poster: String?,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     progress: Float? = null,
     rating: String? = null,
@@ -732,7 +748,7 @@ private fun PosterTile(
                 .focusRequester(tileFocus),
             focusScale = if (wide) 1.02f else 1.08f,
             focusRing = true,
-            onLongClick = favKey?.let { k -> { favs.toggle(favs.prefix + k) } },
+            onLongClick = onLongClick ?: favKey?.let { k -> { favs.toggle(favs.prefix + k) } },
         ) {
             if (isFav) {
                 Text(
@@ -808,5 +824,54 @@ private fun PosterTile(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp).graphicsLayer { alpha = 1f - overlayAlpha },
         )
+    }
+}
+
+/** Actions du menu de « Reprendre ». */
+enum class ResumeAction { Remove, Watched, Restart }
+
+/** Menu de l'appui long sur une vignette de « Reprendre ». */
+@Composable
+private fun ResumeMenu(entry: ResumeEntry, onAction: (ResumeAction) -> Unit, onDismiss: () -> Unit) {
+    val isEpisode = entry.kind == "episode"
+    val name = if (isEpisode) entry.title.substringBeforeLast(" · ", entry.title) else entry.title
+    val first = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(360.dp)
+                .background(Color(0xF0141A22), RoundedCornerShape(Radius.L))
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(name, color = TextPrimary, fontSize = TypeSize.Title3, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (isEpisode) Text(entry.title.substringAfterLast(" · ", ""), color = TextSecondary, fontSize = TypeSize.Caption)
+            Spacer(Modifier.height(8.dp))
+            MenuItem("Retirer de Reprendre", AppIcons.Close, Modifier.focusRequester(first)) { onAction(ResumeAction.Remove) }
+            MenuItem(if (isEpisode) "Marquer l'épisode comme vu" else "Marquer comme vu", AppIcons.Check) { onAction(ResumeAction.Watched) }
+            MenuItem("Reprendre depuis le début", AppIcons.Refresh) { onAction(ResumeAction.Restart) }
+            MenuItem("Annuler", AppIcons.Back) { onDismiss() }
+        }
+    }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+}
+
+@Composable
+private fun MenuItem(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    FocusItem(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(Radius.M),
+        focusScale = 1.02f,
+        idleColor = Color.Transparent,
+    ) { focused ->
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            androidx.compose.material3.Icon(icon, contentDescription = null, tint = if (focused) Color.Black else TextPrimary, modifier = Modifier.size(18.dp))
+            Text(text, color = if (focused) Color.Black else TextPrimary, fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
+        }
     }
 }

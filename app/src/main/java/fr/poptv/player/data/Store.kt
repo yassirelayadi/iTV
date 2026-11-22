@@ -213,7 +213,7 @@ class Store(private val context: Context) {
 
     suspend fun removeResume(key: String) = editResume { list -> list.filterNot { it.key == key } }
 
-    private suspend fun editResume(transform: (List<ResumeEntry>) -> List<ResumeEntry>) {
+    suspend fun editResume(transform: (List<ResumeEntry>) -> List<ResumeEntry>) {
         context.dataStore.edit { prefs ->
             val k = strK("resume", prefs.activeId())
             val updated = transform(decodeResume(prefs[k]))

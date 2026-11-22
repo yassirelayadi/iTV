@@ -291,6 +291,7 @@ private fun App(viewModel: AppViewModel) {
                                     if (state.section == Section.MOVIES) viewModel.openMovie(item) else viewModel.openSeries(item)
                                 },
                                 onResume = viewModel::playResume,
+                                onResumeAction = viewModel::resumeAction,
                                 onToggleFavorite = viewModel::toggleFavoriteVod,
                                 onRetry = viewModel::reloadMedia,
                                 listState = if (target == 1) moviesList else seriesList,
