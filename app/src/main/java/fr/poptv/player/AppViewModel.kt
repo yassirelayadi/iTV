@@ -29,9 +29,7 @@ import fr.poptv.player.data.SpeedTest
 import fr.poptv.player.data.CatalogDb
 import fr.poptv.player.data.XtreamClient
 import fr.poptv.player.data.VodCatalog
-import fr.poptv.player.data.CatalogDb
 import fr.poptv.player.data.VodItem
-import fr.poptv.player.data.XtreamClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
