@@ -52,13 +52,14 @@ object ForYou {
     }
 
     /**
-     * Poids d'un titre de départ selon le comportement : ma liste (+3), terminé (+2), repris et bien avancé
+     * Poids d'un titre de départ selon le comportement : terminé (+5, film ou série), ma liste (+3), repris et bien avancé
      * (+2), un peu avancé (+1), abandonné très tôt (−2,5). Les titres récents comptent plus que les anciens.
      */
     fun seedWeight(favorite: Boolean, watched: Boolean, progress: Float?, ageDays: Float?): Float {
         var w = 0f
         if (favorite) w += 3f
-        if (watched) w += 2f
+        // Regardé jusqu'au bout = aimé : c'est le signal le plus fort.
+        if (watched) w += 5f
         if (progress != null) w += when {
             progress >= 0.5f -> 2f
             progress >= 0.1f -> 1f

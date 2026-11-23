@@ -220,6 +220,7 @@ class TmdbController(
         }
         for (key in input.watched) {
             if (key.startsWith("m:")) add(movieW, key.substring(2), ForYou.seedWeight(false, true, null, null))
+            if (key.startsWith("s:")) add(seriesW, key.substring(2), ForYou.seedWeight(false, true, null, null))
         }
         for (e in input.resume) {
             val progress = if (e.durationMs > 0) e.positionMs.toFloat() / e.durationMs else null

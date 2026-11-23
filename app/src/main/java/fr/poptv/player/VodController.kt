@@ -237,6 +237,16 @@ class VodController(
         return { it.kind == "episode" && it.title.substringBeforeLast(" · ", it.title) == series }
     }
 
+    /** Note la série d'un épisode (titre « Série · S1 E2 ») comme regardée. */
+    private suspend fun markSeriesWatched(episodeTitle: String) {
+        val name = episodeTitle.substringBeforeLast(" · ", "")
+        if (name.isEmpty()) return
+        val id = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { CatalogDb.byName(Section.SERIES, name)?.id }.getOrNull()
+        } ?: return
+        store.markWatched("s:$id")
+    }
+
     /** Retire le titre (ou toute la série) de « Reprendre ». */
     fun removeResume(entry: ResumeEntry) {
         val inGroup = sameGroup(entry)
@@ -249,6 +259,7 @@ class VodController(
         val inGroup = sameGroup(entry)
         scope.launch {
             store.markWatched(entry.key)
+            if (entry.kind == "episode") markSeriesWatched(entry.title)
             var next: ResumeEntry? = null
             if (entry.kind == "episode" && creds != null) {
                 val seriesName = entry.title.substringBeforeLast(" · ", "")
@@ -342,7 +353,8 @@ class VodController(
 
     fun saveProgress(playback: VodPlayback, positionMs: Long, durationMs: Long) {
         // L'épisode suivant est repéré tout de suite : la file est vidée quand le lecteur se ferme.
-        val finished = durationMs > 0 && positionMs >= durationMs * 95 / 100
+        // Terminé à 90 % : le générique de fin est souvent plus long que 5 % du film.
+        val finished = durationMs > 0 && positionMs >= durationMs * 90 / 100
         val nextEpisode = if (finished && playback.kind == "episode") {
             val i = queue.indexOfFirst { it.key == playback.key }
             if (i >= 0 && i < queue.lastIndex) queue[i + 1] else null
@@ -353,6 +365,8 @@ class VodController(
             if (finished) {
                 store.removeResume(playback.key)
                 store.markWatched(playback.key)
+                // Un épisode terminé compte aussi pour la série (« Pour vous » : regardé = aimé).
+                if (playback.kind == "episode") markSeriesWatched(playback.title)
                 // Une série reste dans « Reprendre » tant qu'elle n'est pas finie : on y met l'épisode suivant.
                 if (nextEpisode != null) {
                     store.saveResume(
