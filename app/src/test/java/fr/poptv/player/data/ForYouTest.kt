@@ -34,7 +34,9 @@ class ForYouTest {
         val fav = ForYou.seedWeight(favorite = true, watched = false, progress = null, ageDays = null)
         val finished = ForYou.seedWeight(favorite = false, watched = true, progress = null, ageDays = null)
         val abandoned = ForYou.seedWeight(favorite = false, watched = false, progress = 0.03f, ageDays = 1f)
-        assertTrue(fav > finished)
+        // Regardé jusqu'au bout = aimé : pèse plus que l'ajout à Ma liste.
+        assertTrue(finished > fav)
+        assertTrue(fav > 0f)
         assertTrue(finished > 0f)
         assertTrue(abandoned < 0f)
         val recent = ForYou.seedWeight(true, false, null, 1f)
