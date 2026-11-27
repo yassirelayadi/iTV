@@ -727,20 +727,6 @@ fun VodPlayerScreen(
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(formatTime(position), color = Color(0xCCFFFFFF), fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
-                            // Avance préchargée, en clair : utile pour savoir si une pause vaut le coup.
-                            val aheadMs = (bufferedEnd - position).coerceAtLeast(0L)
-                            Text(
-                                when {
-                                    duration > 0 && bufferedEnd >= duration -> "Film entièrement chargé"
-                                    aheadMs >= 60_000 -> "${aheadMs / 60_000} min d'avance"
-                                    aheadMs > 0 -> "${aheadMs / 1000} s d'avance"
-                                    else -> ""
-                                },
-                                color = TextSecondary,
-                                fontSize = TypeSize.Caption,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.align(Alignment.CenterVertically),
-                            )
                             Text(
                                 if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
                                 color = Color(0xCCFFFFFF),
