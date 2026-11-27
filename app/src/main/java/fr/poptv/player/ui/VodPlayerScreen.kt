@@ -106,6 +106,15 @@ fun VodPlayerScreen(
     // Mesure du débit réseau, affichée pendant les chargements pour savoir si le flux arrive assez vite.
     val diag = remember { LoadDiag(basePositionMs = playback.startMs) }
     val bandwidthMeter = remember { androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build() }
+    // Préchargement sur le stockage : jusqu'à 1,5 Go d'avance (moitié de l'espace libre au plus), une seule connexion.
+    val ahead = remember {
+        val dir = java.io.File(context.cacheDir, "precharge").apply { listFiles()?.forEach { it.delete() } }
+        val maxAhead = (dir.parentFile?.usableSpace ?: 0L).div(2).coerceIn(200L * 1024 * 1024, 1536L * 1024 * 1024)
+        fr.poptv.player.data.AheadDataSourceFactory(dir, maxAhead) { n ->
+            diag.total.addAndGet(n.toLong())
+            diag.sinceBase.addAndGet(n.toLong())
+        }
+    }
     val player = remember {
         // Mémoire tampon : 2 min d'avance, plafonnée à 160 Mo. Minimum = maximum : le lecteur lit le flux en continu
         // au lieu de s'arrêter une minute puis de reprendre. Sinon la connexion reste inactive pendant ces pauses,
@@ -117,13 +126,8 @@ fun VodPlayerScreen(
             .build()
         ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(
-                    OkHttpDataSource.Factory(Http.client)
-                        .setUserAgent(fr.poptv.player.data.UA)
-                        // Compte chaque octet reçu : débit réel pendant la lecture (le mesureur d'ExoPlayer ne se met
-                        // à jour qu'en fin de téléchargement, jamais pendant le long téléchargement d'un film).
-                        .setTransferListener(diag.counter),
-                )
+                // Le film est lu depuis le préchargement (stockage), qui le télécharge au rythme du serveur.
+                DefaultMediaSourceFactory(ahead)
             )
             .setLoadControl(loadControl)
             .setBandwidthMeter(bandwidthMeter)
@@ -322,6 +326,8 @@ fun VodPlayerScreen(
             errorScope.cancel()
             // Dernière position mémorisée (sert à « Reprendre »).
             latestOnProgress(playback, player.currentPosition, player.duration.coerceAtLeast(0L))
+            // Coupe le téléchargement et efface le fichier préchargé avant de libérer le lecteur.
+            ahead.release()
             player.release()
         }
     }
@@ -353,6 +359,7 @@ fun VodPlayerScreen(
                     "tick",
                     "pos" to position,
                     "ahead_ms" to (player.bufferedPosition - player.currentPosition),
+                    "disk_ahead_mb" to ahead.aheadBytes() / 1_000_000.0,
                     "net_mbps" to tickRate(),
                     "recv_mb_10s" to tickBytes / 1_000_000.0,
                     "state" to player.playbackState,

@@ -51,4 +51,42 @@ object SpeedTest {
             null
         }
     }
+
+    /** Débit au départ (5 premières secondes) et en continu (après), sur [seconds] secondes. */
+    data class Sustained(val burstMbps: Double, val steadyMbps: Double)
+
+    suspend fun measureSustained(url: String, seconds: Int = 30): Sustained? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url(url).header("User-Agent", UA).build()
+            Http.client.newCall(request).execute().use { response ->
+                val body = response.body
+                if (!response.isSuccessful || body == null) return@withContext null
+                val input = body.byteStream()
+                val buffer = ByteArray(64 * 1024)
+                var start = 0L
+                var burstBytes = 0L
+                var steadyBytes = 0L
+                val burstNs = 5_000_000_000L
+                val limitNs = seconds * 1_000_000_000L
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    val now = System.nanoTime()
+                    if (start == 0L) {
+                        start = now
+                        continue
+                    }
+                    if (now - start < burstNs) burstBytes += n else steadyBytes += n
+                    if (now - start >= limitNs) break
+                }
+                val elapsed = (System.nanoTime() - start) / 1e9
+                if (start == 0L || elapsed < 6) return@withContext null
+                Sustained(burstBytes * 8 / 5.0 / 1_000_000, steadyBytes * 8 / (elapsed - 5) / 1_000_000)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

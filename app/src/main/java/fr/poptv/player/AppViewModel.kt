@@ -495,7 +495,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             fun mbps(v: Double?) = v?.let { "%.1f Mb/s".format(it) } ?: "échec"
             show("Test de la connexion internet… (8 s)")
             val internet = SpeedTest.internet()
-            show("Internet : ${mbps(internet)} · test du serveur IPTV… (8 s)")
+            show("Internet : ${mbps(internet)} · test du serveur IPTV… (30 s)")
             val creds = credentials
             val sample = creds?.let {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -506,7 +506,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val server = if (creds != null && sample != null) {
-                SpeedTest.measure(sample.url ?: XtreamClient.movieUrl(creds, sample))
+                SpeedTest.measureSustained(sample.url ?: XtreamClient.movieUrl(creds, sample))
             } else {
                 null
             }
@@ -514,13 +514,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 internet == null -> "Test internet impossible."
                 internet < 10 -> "Ta connexion internet est lente : rapproche la TV de la box ou branche-la en Ethernet."
                 server == null -> "Serveur IPTV non testé (aucun film disponible ou serveur injoignable)."
-                server < 5 -> "Ta connexion va bien, mais le serveur IPTV envoie lentement : le problème vient de lui."
-                server < 15 -> "Suffisant pour la HD ; la 4K risque de couper."
+                // Le débit qui compte est celui « en continu » : beaucoup de serveurs envoient vite au départ puis ralentissent.
+                server.steadyMbps < 5 -> "Ta connexion va bien, mais le serveur IPTV ralentit après le démarrage : le problème vient de lui. Préfère les versions HD."
+                server.steadyMbps < 15 -> "Suffisant pour la HD ; la 4K risque de couper."
                 else -> "Débit suffisant, même pour la 4K."
             }
             _state.update {
                 it.copy(
-                    speedTest = "Internet : ${mbps(internet)} · serveur IPTV : ${mbps(server)}\n$verdict",
+                    speedTest = "Internet : ${mbps(internet)} · serveur IPTV : " +
+                        (server?.let { "${mbps(it.burstMbps)} au départ, ${mbps(it.steadyMbps)} en continu" } ?: "échec") +
+                        "\n$verdict",
                     speedTesting = false,
                 )
             }

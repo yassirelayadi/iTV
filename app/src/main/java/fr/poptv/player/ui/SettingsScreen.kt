@@ -155,7 +155,7 @@ fun SettingsScreen(
             )
             SettingRow(
                 title = if (state.speedTesting) "Test de débit en cours…" else "Tester le débit",
-                subtitle = state.speedTest ?: "Mesure ta connexion internet et la vitesse du serveur IPTV (environ 20 s)",
+                subtitle = state.speedTest ?: "Mesure ta connexion internet et la vitesse du serveur IPTV (environ 40 s)",
                 onClick = onSpeedTest,
             )
             var updateText by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
