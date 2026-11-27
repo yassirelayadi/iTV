@@ -120,7 +120,9 @@ fun VodPlayerScreen(
         // au lieu de s'arrêter une minute puis de reprendre. Sinon la connexion reste inactive pendant ces pauses,
         // certains serveurs IPTV la ferment, et il faut se reconnecter (chargement) toutes les minutes environ.
         val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(120_000, 120_000, 5_000, 12_000)
+            // Reprise rapide après un chargement (3 s d'avance au démarrage, 4 s après un arrêt) : des arrêts courts
+            // plutôt que de longues attentes, comme les autres lecteurs IPTV.
+            .setBufferDurationsMs(120_000, 120_000, 3_000, 4_000)
             .setTargetBufferBytes(160 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
