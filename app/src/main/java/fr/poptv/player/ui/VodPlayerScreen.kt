@@ -142,6 +142,8 @@ fun VodPlayerScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var position by remember { mutableLongStateOf(playback.startMs) }
     var duration by remember { mutableLongStateOf(0L) }
+    // Fin de la partie déjà chargée (mémoire + stockage), affichée en gris clair sur la barre de progression.
+    var bufferedEnd by remember { mutableLongStateOf(0L) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlayVisible by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
@@ -344,6 +346,10 @@ fun VodPlayerScreen(
         while (true) {
             delay(500)
             position = player.currentPosition
+            if (duration > 0) {
+                val onDisk = ahead.loadedEndFraction()?.let { (it * duration).toLong() } ?: 0L
+                bufferedEnd = maxOf(player.bufferedPosition, onDisk).coerceAtMost(duration)
+            }
             duration = player.duration.coerceAtLeast(0L)
             ticks++
             if (ticks >= 20) {
@@ -705,6 +711,8 @@ fun VodPlayerScreen(
                                     .clip(RoundedCornerShape(50))
                                     .background(Color(0x40FFFFFF)),
                             ) {
+                                val loadedFraction = if (duration > 0) (bufferedEnd.toFloat() / duration).coerceIn(fraction, 1f) else 0f
+                                Box(modifier = Modifier.fillMaxWidth(loadedFraction).fillMaxHeight().background(Color(0x66FFFFFF)))
                                 Box(modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Color.White))
                             }
                             Box(
@@ -717,6 +725,20 @@ fun VodPlayerScreen(
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(formatTime(position), color = Color(0xCCFFFFFF), fontSize = TypeSize.Body, fontWeight = FontWeight.SemiBold)
+                            // Avance préchargée, en clair : utile pour savoir si une pause vaut le coup.
+                            val aheadMs = (bufferedEnd - position).coerceAtLeast(0L)
+                            Text(
+                                when {
+                                    duration > 0 && bufferedEnd >= duration -> "Film entièrement chargé"
+                                    aheadMs >= 60_000 -> "${aheadMs / 60_000} min d'avance"
+                                    aheadMs > 0 -> "${aheadMs / 1000} s d'avance"
+                                    else -> ""
+                                },
+                                color = TextSecondary,
+                                fontSize = TypeSize.Caption,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.align(Alignment.CenterVertically),
+                            )
                             Text(
                                 if (duration > 0) "−${formatTime(remaining)}  ·  Fini à $endClock" else "",
                                 color = Color(0xCCFFFFFF),

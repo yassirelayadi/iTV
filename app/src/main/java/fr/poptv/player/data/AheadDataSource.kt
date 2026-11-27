@@ -44,6 +44,11 @@ class AheadFetcher(
     private var released = false
     private val raf = RandomAccessFile(file, "rw")
 
+    /** Fin de la partie téléchargée, en fraction du film (null tant que la taille du film est inconnue). */
+    fun loadedEndFraction(): Double? = lock.withLock {
+        if (totalLength > 0) (end.toDouble() / totalLength).coerceIn(0.0, 1.0) else null
+    }
+
     /** Octets téléchargés d'avance par rapport à la lecture. */
     fun aheadBytes(): Long = lock.withLock { (end - readPos).coerceAtLeast(0) }
 
@@ -261,6 +266,10 @@ class AheadDataSourceFactory(
     /** Avance téléchargée (octets) du film en cours. */
     @Synchronized
     fun aheadBytes(): Long = fetchers.values.maxOfOrNull { it.aheadBytes() } ?: 0L
+
+    /** Fin de la partie préchargée du film en cours, en fraction de sa durée. */
+    @Synchronized
+    fun loadedEndFraction(): Double? = fetchers.values.firstOrNull()?.loadedEndFraction()
 
     override fun createDataSource(): DataSource = AheadDataSource(::fetcher)
 
